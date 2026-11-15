@@ -62,8 +62,9 @@ def main():
                 write_asset(root / f"android/launcher/src/main/assets/fonts/{alias}.otf", otf)
 
     for root in roots:
-        for directory in ("assets/fonts", "android/launcher/src/main/assets/fonts"):
-            write_asset(root / directory / "NotoSansArabic-OFL.txt", license_text)
+        write_asset(root / "assets/fonts/NotoSansArabic-OFL.txt", license_text)
+        # The screensaver merges both asset trees. Remove the old generated copy.
+        (root / "android/launcher/src/main/assets/fonts/NotoSansArabic-OFL.txt").unlink(missing_ok=True)
     print(f"Installed Noto Sans Arabic v2.013 in {len(roots)} checkout(s).")
 
 
