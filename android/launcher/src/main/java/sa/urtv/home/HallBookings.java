@@ -18,7 +18,6 @@ import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
-import java.util.TimeZone;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -35,7 +34,7 @@ final class HallBookings {
             String token = token(context);
             if (token.isEmpty()) return response("{\"state\":\"unconfigured\"}");
             SimpleDateFormat date = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-            date.setTimeZone(TimeZone.getTimeZone("Asia/Muscat"));
+            date.setTimeZone(ZoneFix.zone("Asia/Muscat"));
             String day = date.format(new Date());
             HttpsURLConnection connection = (HttpsURLConnection) new URL(CALENDAR + "?start=" + day + "&end=" + day).openConnection();
             try {
