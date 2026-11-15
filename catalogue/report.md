@@ -1,0 +1,53 @@
+# League catalogue, 2026-11-15T12:32:27Z
+
+- 371 competitions (110 hand-named in Arabic)
+- this run: 806 ids asked, ended by time; next from id 5126; highest league id 5125
+- requests 954, 429s 148, errors 0
+
+Hand names that matched nothing (fix the key in AR):
+
+- 5627
+- Saudi King Cup
+- Saudi Super Cup
+- UEFA European Championship Qualifying
+- 5518
+- 5513
+- 5514
+- 5515
+- 5516
+- FIFA Intercontinental Cup
+- FIFA U-20 World Cup
+- FIFA U-17 World Cup
+- AFC Asian Cup Qualifying
+- AFC U23 Asian Cup
+- AFC Challenge League
+- Arabian Gulf Cup
+- 5974
+- Arab Club Champions Cup
+- WAFF Championship
+- Africa Cup of Nations
+- 5520
+- CAF Super Cup
+- African Nations Championship
+- CONCACAF Nations League
+- UAE League Cup
+- UAE First Division League
+- UAE Presidents Cup
+- 5192
+- Qatari Second Division
+- Kuwait Emir Cup
+- 5189
+- 5961
+- Oman Professional League
+- Jordan Premier League
+- 5243
+- Syrian Premier League
+- Palestinian West Bank Premier League
+- Yemeni League
+- 5185
+- Egyptian Super Cup
+- Moroccan Botola Pro
+- Libyan Premier League
+- 5255
+- US Open Cup
+- Saudi Basketball League
