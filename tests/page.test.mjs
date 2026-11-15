@@ -60,6 +60,44 @@ const carry = async p => {   // what the page has kept is put back at the start 
 };
 const restart = async p => { await carry(p); await p.reload(); };
 
+// ---- Hall bookings use the Muscat date, render only escaped room names, and never restore yesterday's rows.
+{
+  const feed = 'https://hall-bookings.urtv.invalid/today.json';
+  let requests = 0;
+  const { p, ctx, errors } = await open('tv-en.html', 'lang=en&home_panel=hallbookings&widget=1&hallbookings=1', {
+    width: 461, height: 250, now: new Date('2026-11-15T20:30:00Z'), tzId: 'America/New_York',
+    net(r) {
+      if (r.request().url() !== feed) return false;
+      requests++;
+      r.fulfill({ headers: { 'Access-Control-Allow-Origin': '*' }, json: {
+        state: 'ok', date: '2026-11-16', rows: [
+          { ar: '', en: 'Room <b>One</b>', start: '00:00', end: '01:00' },
+          { ar: '', en: 'Room Two', start: '01:00', end: '02:00' },
+        ],
+      } });
+      return true;
+    },
+  });
+  const active = p.locator('.hall-booking.active');
+  await active.waitFor({ timeout: 3000 }).catch(() => {});
+  const view = await p.evaluate(() => {
+    saveSnap();
+    return {
+      title: document.querySelector('.week .hd').textContent,
+      current: document.querySelector('.hall-booking.active .v')?.textContent,
+      markup: !!document.querySelector('.hall-booking b'),
+      saved: localStorage.getItem(SNAP_KEY),
+    };
+  });
+  check('hall bookings: Muscat date and active booking, escaped text, no stored rows',
+    !errors.length && requests === 1 && view.title === 'Hall Bookings Today' &&
+    view.current === 'Room <b>One</b>' && !view.markup && !view.saved?.includes('Room'), JSON.stringify({ view, errors }));
+  await p.clock.setFixedTime(new Date('2026-11-16T20:00:00Z'));
+  await p.evaluate(() => renderPanel(false, 'hallbookings'));
+  check('hall bookings: previous day cleared at the Muscat date change', await p.locator('.hall-booking').count() === 0);
+  await ctx.close();
+}
+
 // ---- both pages, three screen sizes: no errors, shown, clock right, nothing off screen, Arabic digits
 for (const file of ['urtv.html', 'tv.html']) {
   for (const [w, h] of [[1920, 1080], [1280, 720], [960, 540]]) {

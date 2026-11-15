@@ -57,6 +57,12 @@ public class ConfigProvider extends ContentProvider {
             return d;
         }
         Prefs p = new Prefs(getContext());
+        if (uri != null && "/hall-bookings-token".equals(uri.getPath())) {
+            // The provider's signature-level read permission protects this path.
+            MatrixCursor token = new MatrixCursor(new String[] {"token"});
+            token.addRow(new Object[] {p.hallBookingsToken()});
+            return token;
+        }
         if (uri != null && uri.getPathSegments().size() == 1 && "homepacks".equals(uri.getPathSegments().get(0))) {   // the home's wallpaper: which packs (id, photos), whether ours is in, and a revision that moves with the set
             MatrixCursor h = new MatrixCursor(new String[] {"id", "n", "ours", "rev"});
             java.util.Map<String, Integer> set = p.homePacks();

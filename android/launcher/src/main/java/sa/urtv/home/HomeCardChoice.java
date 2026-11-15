@@ -70,7 +70,8 @@ final class HomeCardChoice {
         if (choice == null) return PRAYERS;
         if ("none".equals(choice[1]) || choice[1].isEmpty()) return null;
         String frag = choice[0].replaceAll("(^|&)(panel|week)=[^&]*", "");   // the screensaver's own card choice
-        return base(choice[0]) + frag + "&panel=" + choice[1].split(",")[0] + "&home_panel=" + choice[1] + "&widget=1";
+        String bookingFeed = java.util.Arrays.asList(choice[1].split(",")).contains("hallbookings") ? "&hallbookings=1" : "";
+        return base(choice[0]) + frag + "&panel=" + choice[1].split(",")[0] + "&home_panel=" + choice[1] + "&widget=1" + bookingFeed;
     }
 
     /**

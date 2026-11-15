@@ -404,6 +404,13 @@
 طقس الساعات القادمة	Hourly forecast
 الصلوات في صف	Prayers in a row
 الصلاة القادمة	Next prayer
+حجوزات القاعات اليوم	Hall Bookings Today
+قاعات محجوزة اليوم وأوقاتها بتوقيت مسقط	Reserved halls and times in Muscat
+رمز عرض حجوزات القاعات	Hall bookings display token
+أضف رمز حساب العرض	Add the display account token
+تم حفظ الرمز	Token saved
+حذف الرمز	Remove token
+رمز العرض يجب أن يكون ٤٠ خانة من 0 إلى 9 ومن A إلى F	Enter the 40-character hexadecimal display token
 مباريات فرقك القادمة	Your teams’ matches
 آية أو حديث اليوم	Verse or hadith of the day
 حكمة اليوم	Saying of the day

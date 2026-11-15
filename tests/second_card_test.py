@@ -31,13 +31,13 @@ def read(p):
 prefs, recv, settings = read(APP / "Prefs.java"), read(APP / "SaverReceiver.java"), read(APP / "SettingsActivity.java")
 tpl, saver = read(ROOT / "src/template.html"), read(ROOT / "optimize/saver.sh")
 
-# the cards: Prefs.PANELS, and the one that is the home screen's only
+# the cards: Prefs.PANELS and the home-only choices
 panels = re.findall(r'\{"([a-z]+)", "[^"]+"\}', re.search(r"PANELS = \{(.*?)\n    \};", prefs, re.S).group(1))
-home_only = re.search(r'static boolean homeOnly\(String v\) \{ return "([a-z]+)"\.equals\(v\); \}', prefs)
-check("Prefs: the next prayer is the only home-screen card (what SecondCard leaves out by name)", home_only and home_only.group(1) == "nextprayer",
-      home_only and home_only.group(0))
+home_only = re.search(r'static boolean homeOnly\(String v\) \{ return (.*?); \}', prefs)
+home_only_cards = re.findall(r'"([a-z]+)"\.equals\(v\)', home_only.group(1)) if home_only else []
+check("Prefs: next prayer and hall bookings are home-screen only", set(home_only_cards) == {"nextprayer", "hallbookings"}, home_only_cards)
 check("Prefs: SAVER_PANELS is PANELS without the home-only cards", re.search(r"for \(String\[\] p : PANELS\) if \(!homeOnly\(p\[0\]\)\) out\.add\(p\);", prefs))
-cards = [p for p in panels if p != "nextprayer"]
+cards = [p for p in panels if p not in home_only_cards]
 
 # ---- the rule, on a JVM
 if shutil.which("javac") and shutil.which("java"):
@@ -84,7 +84,10 @@ check("settings: a change of the clock size builds the list again (the row comes
 # ---- the page: a look only (out of the snapshot's key); the rule there is the same
 snap = re.search(r"const SNAP_LOOK = \[([^\]]*)\]", tpl).group(1)
 check("page: panel2 is in SNAP_LOOK (a look only: changing it offline keeps the saved panels)", "'panel2'" in snap, snap)
-check("page: #panel2= is never the next prayer nor the first card", "p !== 'nextprayer' && p !== CONFIG.panel ? p : 'none'" in tpl)
+page_home_only = re.search(r"const HOME_ONLY_CARDS = \[(.*?)\]", tpl)
+check("page: #panel2= excludes home-only cards and the first card",
+      page_home_only and re.findall(r"'([a-z]+)'", page_home_only.group(1)) == home_only_cards
+      and "!HOME_ONLY_CARDS.includes(p) && p !== CONFIG.panel ? p : 'none'" in tpl)
 check("page: the pair only beside the small clock, on the screensaver, with a first card",
       "const PAIR = !CONFIG.widget && CONFIG.clockSize === 'small' && CONFIG.panel !== 'none' && CONFIG.panel2 !== 'none';" in tpl)
 

@@ -75,8 +75,8 @@ SWITCHES = ("greeting", "sunrise", "prayerbar", "wxmore", "pagesdark")   # on/of
 MARKETS = ("tasi", "aramco", "spx", "btc", "gold", "silver", "oil", "xrp")
 MAX_MARKETS = 4
 PANELS = ("shows", "prayers", "forecast", "hourly", "prayerrow", "nextprayer", "matches", "verse", "wisdom", "adhkar",
-          "stocks", "tasks", "year", "smart", "today", "album", "none")
-HOME_ONLY = ("nextprayer",)   # Prefs.homeOnly: offered on the home cards, never as the screensaver's panel
+          "stocks", "tasks", "year", "smart", "today", "album", "hallbookings", "none")
+HOME_ONLY = ("nextprayer", "hallbookings")   # Prefs.homeOnly: offered on the home cards, never as the screensaver's panel
 HOME_CARDS = 3
 MAX_TEAMS = 20
 PRAYERS = ("fajr", "dhuhr", "asr", "maghrib", "isha")

@@ -27,7 +27,9 @@ check("hotfix 4.3: a cold start draws the picture when there is a good one; with
       "HomeSnapshot.skeleton(" not in main and "root.setBackgroundColor(GlassSource.look(this).base)" in main and "root.setBackgroundColor(Color.BLACK)" not in main and "if (b == null) {" in main)
 check("hotfix 4.3: drawn at once at a cold start only; coming back from another app (the Activity only stopped) shows NO overlay: its live views are still there", "showSnapshot();   // a cold start" in main and main.count("showSnapshot();") == 1 and "protected void onRestart()" in main)
 check("a new picture when the home goes to the background (not while the stand-in is in front) and every ten minutes while it is idle in front",
-      "if (snapOverlay == null && WallFirstFrame.snapshotWorthKeeping(fullPhotoShown, appsShown, wallTrimmed)) HomeSnapshot.capture(this, homeRoot, null);" in main and "IDLE_MS = 10 * 60 * 1000" in snap and "handler.postDelayed(snapTick, HomeSnapshot.IDLE_MS)" in main)
+      "if (snapOverlay == null && !homeCard.showsHallBookings() && WallFirstFrame.snapshotWorthKeeping(fullPhotoShown, appsShown, wallTrimmed)) HomeSnapshot.capture(this, homeRoot, null);" in main
+      and "!homeCard.showsHallBookings()" in main.split("HomeSnapshot.capture(MainActivity.this")[0].splitlines()[-1]
+      and "IDLE_MS = 10 * 60 * 1000" in snap and "handler.postDelayed(snapTick, HomeSnapshot.IDLE_MS)" in main)
 check("it stays until the live views have painted (no page loading, at least 400 ms), at most 2.5 s, then a 220 ms fade; never a gap in between",
       "!(homeCard != null && homeCard.loading())" in main and "MIN_MS = 400" in snap and "LIVE_WAIT_MS = 2500" in snap and "FADE_MS = 220" in snap and "animate().alpha(0f).setDuration(HomeSnapshot.FADE_MS)" in main
       and "loading = true;" in card and "loading = false;" in card.split("public void onPageFinished")[1][:80])

@@ -265,11 +265,20 @@ final class Prefs {
         {"matches", "مباريات فرقك القادمة"}, {"verse", "آية أو حديث اليوم"}, {"wisdom", "حكمة اليوم"},
         {"adhkar", "أذكار الصباح والمساء"}, {"stocks", "الأسهم"}, {"tasks", "المهام"}, {"year", "السنة"},
         {"smart", "البطاقة الذكية"}, {"today", "يومك"}, {"album", "ألبوم صوري"},
+        {"hallbookings", "حجوزات القاعات اليوم"},
         {"none", "لا شيء"},
     };
 
-    /** Cards for the home screen only: on the screensaver the always-on panel at the bottom right already says the same. */
-    static boolean homeOnly(String v) { return "nextprayer".equals(v); }
+    /** Cards that are available on the home screen only. */
+    static boolean homeOnly(String v) { return "nextprayer".equals(v) || "hallbookings".equals(v); }
+
+    String hallBookingsToken() { return sp.getString("hall_bookings_token", ""); }
+    void setHallBookingsToken(String token) {
+        SharedPreferences.Editor edit = sp.edit();
+        if (token.isEmpty()) edit.remove("hall_bookings_token");
+        else edit.putString("hall_bookings_token", token);
+        edit.apply();
+    }
 
     /** Older builds had an on/off switch for the card; off becomes "none", otherwise the verse card. A home-only card is the verse there. */
     String panel() {
@@ -298,6 +307,7 @@ final class Prefs {
         {"hourly", "الست ساعات الجاية بالساعة والأيقونة والحرارة، وقمر بعد الغروب"},
         {"prayerrow", "الخمس صلوات في صف واحد، والجاية مضيئة"},
         {"nextprayer", "سطر واحد: الصلاة الجاية ووقتها وكم باقي لها"},
+        {"hallbookings", "قاعات محجوزة اليوم وأوقاتها بتوقيت مسقط"},
         {"matches", "مباريات الأسبوع ونتائج آخر يوم لفرقك، وكل مباراة بسطر واحد"},
         {"verse", "آية يوم، وحديث صحيح من الكتب الستة اليوم اللي بعده، ومعه مصدره"},
         {"wisdom", "مثل أو قول عربي معروف مع مصدره"},

@@ -408,6 +408,9 @@ public class SettingsActivity extends Activity {
             row(HOME_CARD_NAMES[k], Prefs.panelLabel(prefs.homePanelAt(k), "بدون"), R.drawable.ic_eye,
                 new Runnable() { public void run() { pickPanel(place); } });
         }
+        if (prefs.homePanels().contains("hallbookings"))
+            row("رمز عرض حجوزات القاعات", prefs.hallBookingsToken().isEmpty() ? "أضف رمز حساب العرض" : "تم حفظ الرمز",
+                R.drawable.ic_settings, this::editHallBookingsToken);
         row("التحية والطقس", prefs.greeting() ? "تعمل" : "متوقفة", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
         // the adhan's settings (on or off, the voice, the Fajr voice, short, any key stops it, the volume): the same screen as the player's adhan tab,
@@ -1515,6 +1518,24 @@ public class SettingsActivity extends Activity {
     }
 
     private static final String[] HOME_CARD_NAMES = {"البطاقة الأولى", "البطاقة الثانية", "البطاقة الثالثة"};
+
+    private void editHallBookingsToken() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        new Dlg(this).setTitle("رمز عرض حجوزات القاعات").setView(input)
+            .setPositiveButton("حفظ", (d, w) -> {
+                String token = input.getText().toString().trim();
+                if (!token.matches("[a-fA-F0-9]{40}")) {
+                    toast("رمز العرض يجب أن يكون ٤٠ خانة من 0 إلى 9 ومن A إلى F");
+                    return;
+                }
+                prefs.setHallBookingsToken(token);
+                render();
+            })
+            .setNeutralButton("حذف الرمز", (d, w) -> { prefs.setHallBookingsToken(""); render(); })
+            .setNegativeButton("إلغاء", null).show();
+    }
 
     /** The card beside the screensaver's clock (place -1), or place 0 to 2 of the cards on the launcher's home screen. */
     private void pickPanel(final int place) {

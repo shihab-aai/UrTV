@@ -128,6 +128,12 @@ final class HomeCard {
 
     boolean isFootball() { return web != null && footballFocus != null; }
 
+    boolean showsHallBookings() { return hasBookingFeed(url); }
+
+    private static boolean hasBookingFeed(String url) {
+        return url != null && (url.contains("&hallbookings=1&") || url.endsWith("&hallbookings=1"));
+    }
+
     /** A football widget's focus target ("wx", "pr", "mt"), null when the layout is off. */
     View footballTarget(String key) { return footballFocus == null ? null : footballFocus.target(key); }
 
@@ -300,6 +306,7 @@ final class HomeCard {
     @SuppressLint("SetJavaScriptEnabled")
     @SuppressWarnings("deprecation")
     private void create(String u) {
+        boolean showHallBookings = hasBookingFeed(u);
         web = new WebView(activity);
         web.setBackgroundColor(Color.TRANSPARENT);
         web.setFocusable(false);
@@ -353,6 +360,8 @@ final class HomeCard {
                     }
                 }
                 if (s.startsWith(OWN_BASE)) return ownPhoto(s.substring(OWN_BASE.length()));
+                if (showHallBookings && HallBookings.FEED.equals(s) && "GET".equals(r.getMethod()))
+                    return HallBookings.fetch(activity);
                 return super.shouldInterceptRequest(v, r);
             }
         });

@@ -344,7 +344,7 @@ public class MainActivity extends Activity {
         if (appsEdit != null) leaveAppsEdit();   // the same for «تعديل التطبيقات»
         handler.removeCallbacks(rotateWallpaper);
         handler.removeCallbacks(snapTick);
-        if (snapOverlay == null && WallFirstFrame.snapshotWorthKeeping(fullPhotoShown, appsShown, wallTrimmed)) HomeSnapshot.capture(this, homeRoot, null);   // the picture the next cold start draws first: never one without the photo or the apps bar
+        if (snapOverlay == null && !homeCard.showsHallBookings() && WallFirstFrame.snapshotWorthKeeping(fullPhotoShown, appsShown, wallTrimmed)) HomeSnapshot.capture(this, homeRoot, null);   // the picture the next cold start draws first: never one without the photo or the apps bar
         unregisterReceiver(tick);
         if (inputsPopup != null) inputsPopup.dismiss();
         if (control != null) control.dismiss();   // its speed test stops with it
@@ -374,7 +374,7 @@ public class MainActivity extends Activity {
     private long snapShownAt;
     private final Runnable snapTick = new Runnable() {   // while the home is in front and idle: a fresh picture every ten minutes
         @Override public void run() {
-            if (resumed && snapOverlay == null && WallFirstFrame.snapshotWorthKeeping(fullPhotoShown, appsShown, wallTrimmed)) HomeSnapshot.capture(MainActivity.this, homeRoot, null);
+            if (resumed && snapOverlay == null && !homeCard.showsHallBookings() && WallFirstFrame.snapshotWorthKeeping(fullPhotoShown, appsShown, wallTrimmed)) HomeSnapshot.capture(MainActivity.this, homeRoot, null);
             handler.postDelayed(this, HomeSnapshot.IDLE_MS);
         }
     };

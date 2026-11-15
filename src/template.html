@@ -215,6 +215,8 @@
   .week li.td .k{font-size:.74em;color:#9C9279;white-space:nowrap}
   .week li.td .v{color:#F6EEDC;min-width:0;line-height:1.35}
   .week li.td .r{font-size:.74em;color:var(--gold-3);white-space:nowrap}
+  .week li.hall-booking .v{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .week li.hall-booking.active .v{color:var(--gold-3)}
   .week li.past{color:#8F8670}
   .week li.next{color:var(--gold-hi)}
   .week li.next .dt{color:var(--gold-3)}
@@ -872,7 +874,8 @@ const _num = (k, d) => { const v = parseFloat(_Q.get(k)); return isNaN(v) ? d : 
 // the city's time zone, #tz=: the clock, prayers, matches and dates all go by it
 const _tzOk = z => { try{ new Intl.DateTimeFormat('en',{timeZone:z}); return true; }catch(e){ return false; } };
 // the cards a slot can show (Prefs.PANELS in the app is the same list); «none» is the absence of one
-const CARD_KINDS = ['shows','prayers','forecast','hourly','prayerrow','nextprayer','matches','verse','wisdom','adhkar','stocks','tasks','year','smart','today','album'];
+const CARD_KINDS = ['shows','prayers','forecast','hourly','prayerrow','nextprayer','matches','verse','wisdom','adhkar','stocks','tasks','year','smart','today','album','hallbookings'];
+const HOME_ONLY_CARDS = ['nextprayer', 'hallbookings'];
 const CONFIG = {
   city: _Q.get('city') || 'الرياض',
   latitude: _num('lat', 24.7136),
@@ -895,8 +898,7 @@ const CONFIG = {
   events: _list('events').filter(k => ['f1','ufc','boxing'].includes(k)),
   eventWindowDays: 14,
   // the card beside the clock: one of CARD_KINDS or none (#week=0 from older builds = none)
-  // nextprayer is the launcher's only (the screensaver's bottom-right panel says the same)
-  panel: (p => (CARD_KINDS.includes(p) && !(p === 'nextprayer' && _Q.get('widget') !== '1')) || p === 'none' ? p : 'verse')
+  panel: (p => (CARD_KINDS.includes(p) && (!HOME_ONLY_CARDS.includes(p) || _Q.get('widget') === '1')) || p === 'none' ? p : 'verse')
          (_Q.get('panel') || (_Q.get('week') === '0' ? 'none' : 'verse')),
   // #tasks=: the open tasks, one per line (the app drops done ones), at most 12 of 60 characters
   tasks: (_Q.get('tasks') || '').split('\n').map(x=>x.trim().slice(0, 60)).filter(Boolean).slice(0, 12),
@@ -1040,7 +1042,7 @@ const CAL_LABEL = {1:'جامعة العلوم الإسلامية بكراتشي'
 const clockSubText = () => 'بتوقيت ' + CONFIG.city + (CAL_LABEL[CONFIG.prayerMethod] ? ' · ' + CAL_LABEL[CONFIG.prayerMethod] : '');
 // «بطاقة ثانية» (#panel2=): a second card beside the small clock only
 // or when it is the first card again or the next prayer
-CONFIG.panel2 = (p => CARD_KINDS.includes(p) && p !== 'nextprayer' && p !== CONFIG.panel ? p : 'none')(_Q.get('panel2') || '');
+CONFIG.panel2 = (p => CARD_KINDS.includes(p) && !HOME_ONLY_CARDS.includes(p) && p !== CONFIG.panel ? p : 'none')(_Q.get('panel2') || '');
 const PAIR = !CONFIG.widget && CONFIG.clockSize === 'small' && CONFIG.panel !== 'none' && CONFIG.panel2 !== 'none';
 CONFIG.cards = (CONFIG.widget && _Q.has('home_panel') ? _list('home_panel') : PAIR ? [CONFIG.panel, CONFIG.panel2] : [CONFIG.panel])
   .filter((k, i, a) => CARD_KINDS.includes(k) && a.indexOf(k) === i).slice(0, 3);
@@ -2893,8 +2895,49 @@ function liveRect(kind = 'tasks'){
 
 let FORECAST = [];
 try{ FORECAST = JSON.parse(localStorage.getItem(LS.forecast) || '[]') || []; }catch(e){}
-const PANEL_TITLE = {album:'ألبوم صوري', today:'يومك', shows:'هذا الأسبوع', prayers:'مواقيت اليوم', nextprayer:'الصلاة القادمة', forecast:'الأيام القادمة', hourly:'الساعات القادمة', matches:CONFIG.leagues.length ? 'المباريات' : 'مباريات فرقك', tasks:'المهام', year:'السنة'};
-const LISTS = ['matches', 'stocks', 'tasks', 'shows'];   // the kinds that page through their rows
+const PANEL_TITLE = {album:'ألبوم صوري', today:'يومك', shows:'هذا الأسبوع', prayers:'مواقيت اليوم', nextprayer:'الصلاة القادمة', forecast:'الأيام القادمة', hourly:'الساعات القادمة', matches:CONFIG.leagues.length ? 'المباريات' : 'مباريات فرقك', tasks:'المهام', year:'السنة', hallbookings:'حجوزات القاعات اليوم'};
+const LISTS = ['matches', 'stocks', 'tasks', 'shows', 'hallbookings'];   // the kinds that page through their rows
+
+let hallSchedule = null, hallNextFetch = 0, hallRequestedDate = '', hallRequestPending = false;
+function muscatNow(){
+  const p = new Date(Date.now() + 4 * 3600000).toISOString();
+  return {date:p.slice(0, 10), time:p.slice(11, 16)};
+}
+async function loadHallBookings(){
+  const day = muscatNow().date;
+  if(hallRequestPending || (hallRequestedDate === day && Date.now() < hallNextFetch)) return;
+  hallRequestedDate = day;
+  hallRequestPending = true;
+  try{
+    const response = await fetch('https://hall-bookings.urtv.invalid/today.json', {cache:'no-store'});
+    if(!response.ok) throw new Error();
+    hallSchedule = await response.json();
+    if(hallSchedule.state === 'ok') hallSchedule.rows.sort((a, b) => a.start.localeCompare(b.start));
+  }catch(e){ hallSchedule = {state:'offline'}; }
+  finally{
+    hallRequestPending = false;
+    hallNextFetch = Date.now() + (hallSchedule && hallSchedule.state === 'ok' ? 5 : 1) * 60000;
+  }
+  renderPanel(false, 'hallbookings');
+}
+function hallBookingRows(){
+  const empty = s => [`<li class="empty">${s}</li>`];
+  if(!_Q.has('hallbookings')) return empty('قاعات محجوزة اليوم وأوقاتها بتوقيت مسقط');
+  if(!hallSchedule) return empty('جارٍ تحميل حجوزات القاعات…');
+  if(hallSchedule.state === 'unconfigured') return empty('أضف رمز حساب العرض من إعدادات الشاشة الرئيسية');
+  if(hallSchedule.state === 'denied') return empty('تحقق من رمز العرض وصلاحيات حسابه');
+  if(hallSchedule.state !== 'ok') return empty('تعذر تحميل حجوزات القاعات');
+  const now = muscatNow();
+  if(hallSchedule.date !== now.date) return empty('جارٍ تحميل حجوزات القاعات…');
+  if(!hallSchedule.rows.length) return empty('لا توجد حجوزات اليوم');
+  const time = value => fmtTime(+value.slice(0, 2), +value.slice(3));
+  return hallSchedule.rows.map(row => {
+    const active = row.start && row.end && row.start <= now.time && now.time < row.end;
+    const room = _Q.get('lang') === 'en' ? row.en || row.ar : row.ar || row.en;
+    const hours = row.start && row.end ? time(row.start) + ' – ' + time(row.end) : 'محجوزة';
+    return `<li class="td hall-booking${active ? ' active' : ''}"><span class="k" dir="auto">${hours}</span><span class="v" dir="auto">${esc(room)}</span><span class="r">${active ? 'الآن' : ''}</span></li>`;
+  });
+}
 
 // ---- «يومك» (today): the day in one card
 // occasion. A line with nothing to say is left out.
@@ -3031,6 +3074,7 @@ function renderCard(card, animate, keepSize){
   else if(P === 'hourly') rows = hourlyRows();
   else if(P === 'prayerrow'){ const q = prayerRowCard(); paintHd(hd, q.title); rows = q.rows; }
   else if(P === 'nextprayer') rows = nextPrayerRows();
+  else if(P === 'hallbookings') rows = hallBookingRows();
   else if(P === 'matches') rows = matchRows(card);
   else if(P === 'year') rows = [yearCard(card)];
   else if(P === 'album') rows = [albumCard(card)];
@@ -3050,8 +3094,8 @@ function renderCard(card, animate, keepSize){
     return;
   }
   const per = card.cap || (P === 'matches' ? MATCH_ROWS : WEEK_ROWS);
-  if((P === 'matches' || P === 'stocks' || P === 'tasks') && rows.length > per){        // page through, like the shows
-    if(P === 'matches'){   // fixed pages, each game once a lap; the last holds what is left
+  if(LISTS.includes(P) && rows.length > per){        // page through, like the shows
+    if(P === 'matches' || P === 'hallbookings'){   // fixed pages; the last holds what is left
       const pages = Math.ceil(rows.length / per), start = (card.page % pages) * per;
       rows = rows.slice(start, start + per);
     }else{
@@ -3994,7 +4038,7 @@ let SNAP_LAST = null;   // what is stored now: the panels rarely change, so most
 const noCrestData = h => (h || '').replace(/ src="data:[^"]*"/g, '');   // the crests are kept apart
 function saveSnap(){
   const s = JSON.stringify([SNAP_SEL.map(q => noCrestData((document.querySelector(q)||{}).innerHTML)),
-    CARDS.map(c => [c.kind, noCrestData(c.ul.innerHTML), c.hd.innerHTML])]);
+    CARDS.map(c => c.kind === 'hallbookings' ? null : [c.kind, noCrestData(c.ul.innerHTML), c.hd.innerHTML])]);
   if(s === SNAP_LAST) return;
   try{ localStorage.setItem(SNAP_KEY, s); SNAP_LAST = s; }catch(e){}
 }
@@ -4014,7 +4058,7 @@ function restoreSnap(){
 // What the cards need to be redrawn on, one place for the screensaver and the launcher
 // every 15 s (prayers, the row, the hours, the smart card, «يومك»), the windows and markets every minute.
 function cardTimers(){
-  const clocked = ['prayers', 'hourly', 'prayerrow', 'nextprayer', 'smart', 'today'];
+  const clocked = ['prayers', 'hourly', 'prayerrow', 'nextprayer', 'smart', 'today', 'hallbookings'];
   setInterval(() => renderPanel(false, ...clocked), 15000);
   setInterval(() => {
     for(const c of CARDS){
@@ -4022,6 +4066,7 @@ function cardTimers(){
       else if(c.eff === 'matches'){ c.page++; renderCard(c, matchRows(c).length > (c.cap || MATCH_ROWS)); }
       else if(c.eff === 'stocks' && CONFIG.stocks.length > (c.cap || WEEK_ROWS)){ c.page++; renderCard(c, true); }
       else if(c.eff === 'tasks' && CONFIG.tasks.length > (c.cap || WEEK_ROWS)){ c.page++; renderCard(c, true); }
+      else if(c.eff === 'hallbookings' && hallBookingRows().length > (c.cap || WEEK_ROWS)){ c.page++; renderCard(c, true); }
     }
     fitCards();
   }, 25*1000);
@@ -4732,6 +4777,7 @@ function bootWidget(){
   if(USES('forecast') || USES('hourly')){ loadWeather(); periodic(loadWeather, 30*60*1000); }
   if(USES('matches')){ loadMatches(); periodic(loadMatches, 30*60*1000); periodic(loadLive, 2*60000); }
   if(USES('stocks')){ loadMarkets(); periodic(loadMarkets, (CONFIG.lowram ? 15 : CONFIG.midram ? 10 : 5)*60*1000); }
+  if(USES('hallbookings') && _Q.has('hallbookings')){ loadHallBookings(); setInterval(loadHallBookings, 15000); }
   cardTimers();
   let lastDay = riyadhDayNumber();
   setInterval(() => { if(riyadhDayNumber() !== lastDay){ lastDay = riyadhDayNumber(); renderPanel(false); if(USES('prayers') || USES('prayerrow') || USES('adhkar')) later(loadPrayers); } }, 60*1000);
