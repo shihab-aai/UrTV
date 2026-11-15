@@ -1,0 +1,16 @@
+{
+ "updated": "2026-11-15T22:21:45Z",
+ "events": 74,
+ "new": 0,
+ "updated_events": 3,
+ "pruned": 0,
+ "leagues": 17,
+ "seasons": 17,
+ "teams": 115,
+ "pairs": 20,
+ "bytes": 72112,
+ "seconds": 0.01,
+ "problems": [],
+ "last_live": "2026-11-15T20:35:52Z",
+ "live_requests": 3
+}
