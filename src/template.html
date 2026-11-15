@@ -425,14 +425,14 @@
        (#panel2=) as a pair of the same height, a column each. The Hijri date, the headline beside a small clock, is a step larger. */
   /* the three sizes as 1 : .75 : .55 of the large clock's clamp(120px, min(17vw, 31vh), 345px): a size you can tell apart */
   html.ck-medium .clock{font-size:clamp(90px,min(12.75vw,23.25vh),259px)}
-  html.ck-small{--ckf:clamp(66px,min(9.35vw,17.05vh),190px);--ckc:calc(var(--ckf) * var(--ckk,3.26))}   /* --ckk: the widest time, in ems (boot) */
+  html.ck-small{--ckf:clamp(66px,min(9.35vw,17.05vh),190px);--ckc:calc(var(--ckf) * var(--ckk,3.32))}/* --ckk: the widest time, in ems (boot) */
   html.ck-small .clock{font-size:var(--ckf)}
   html.ck-medium .mid{gap:3.6vw}
   html.ck-medium .mid > .clockwrap,html.ck-small .mid > .clockwrap{justify-self:start;align-items:flex-start}
   html.ck-medium .ystrip,html.ck-small .ystrip{left:auto;right:0;transform:none}
   html.ck-medium .mid > .week{width:min(1000px,56vw)}
   html.ck-small .hijri{font-size:clamp(21px,2.1vw,42px)}
-  html.ck-small .mid{grid-template-columns:minmax(var(--ckc),auto) minmax(0,1fr) minmax(0,1fr);grid-template-rows:1fr auto 1fr;gap:0 2.4vw}
+  html.ck-small .mid{grid-template-columns:var(--ckc) minmax(0,1fr) minmax(0,1fr);grid-template-rows:1fr auto 1fr;gap:0 2.4vw}
   html.ck-small .mid > .clockwrap{grid-column:1;grid-row:1/-1;align-self:center}
   html.ck-small .mid > .week{grid-row:2;width:auto;max-width:none;justify-self:stretch}
   html.ck-small .mid.n1 > .week{grid-column:2/-1;justify-self:end;width:min(1000px,56vw);max-width:100%}   /* one card: as wide as beside the medium clock */
@@ -4691,10 +4691,8 @@ function boot(){
   if(!SLOT_MATCHES) document.getElementById('match-row').textContent = '';   // not «لا شيء هذا الأسبوع»: that is the matches slot's
   if(CONFIG.cardStyle !== 'current') document.documentElement.classList.add('cs-' + CONFIG.cardStyle);
   if(CONFIG.clockSize !== 'large') document.documentElement.classList.add('ck-' + CONFIG.clockSize);
-  // the small clock's column: its widest time of day in ems, every minute measured in Thmanyah Display
-  // in Latin digits 3.25), so the cards beside it and the panels under it never move
-  // with the seconds, their two boxes and the space before them
-  if(CONFIG.clockSize === 'small') document.documentElement.style.setProperty('--ckk', ((LATIN ? 3.26 : 2.62) + (CONFIG.seconds ? .44 : 0)).toFixed(2));
+  // Reserve the widest clock time in Noto Sans Arabic, including the optional seconds.
+  if(CONFIG.clockSize === 'small') document.documentElement.style.setProperty('--ckk', ((LATIN ? 3.32 : 3.28) + (CONFIG.seconds ? .44 : 0)).toFixed(2));
   if(CONFIG.seconds && !CONFIG.widget) document.getElementById('ck-m').insertAdjacentHTML('afterend', '<span class="sec" id="ck-s"><i></i><i></i></span>');
   buildMarkets();
   restoreSnap();
