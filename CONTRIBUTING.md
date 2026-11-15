@@ -13,6 +13,15 @@ Thank you. Small, safe changes are the best ones: a fix, a test, a clearer line 
 
    While you work, run just the test of the file you touched, for example `python3 tests/share_test.py`.
 
+## Releases for this fork
+
+The launcher and screensaver built here read APK updates and the screensaver page from this fork.
+
+- In GitHub repository settings, set `FONTS_TOKEN` to a read-only token for an approved private font repository. Set the Actions variable `URTV_FONTS_REPOSITORY` if that repository differs from the upstream font repository.
+- The release workflow uses `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASSWORD`. For an in-place migration, the release must be signed with the key of the installed apps. Use the maintainers' authorized signing process.
+- Set the Actions variable `URTV_BUILD_OFFSET` so the first fork build number (the workflow run number plus the offset) is greater than both installed build numbers. Keep the offset fixed for later releases. The workflow uses that number in both APKs and their `version.txt`.
+- After the matching-signed `apk-latest` release is published, use `URTV_RELEASE_REPO=shihab-aai/UrTV optimize/install.sh all` for the first migration, subject to the TV setup instructions. The new apps take subsequent updates from the fork.
+
 ## Rules
 
 - Read [AGENTS.md](AGENTS.md); it applies to people and to AI agents alike. In short: never build or install your own APK,

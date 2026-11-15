@@ -10,7 +10,8 @@ import java.util.Set;
  */
 public final class UpdateRules {
     /** The same release optimize/install.sh downloads from (APK_TAG defaults to apk-latest there too). */
-    public static final String RELEASES = "https://github.com/tshi-dev/UrTV/releases/download/";
+    public static final String REPOSITORY = "github.com/shihab-aai/UrTV";
+    public static final String RELEASES = "https://" + REPOSITORY + "/releases/download/";
     public static final String BASE = RELEASES + "apk-latest/";
     /** The test channel (agents only, `saver.sh updatechannel next`): the same files from the apk-next release, with the same checks. */
     public static final String NEXT_BASE = RELEASES + "apk-next/";

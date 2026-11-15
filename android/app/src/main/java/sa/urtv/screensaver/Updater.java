@@ -13,15 +13,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Pulls the latest page from GitHub so screen changes reach the TV without a new APK. */
 final class Updater {
-    static final String URL_PAGE =
-        PhotoCache.REPO + "dist/tv.html";
+    private static final String PAGE_DIR = "https://raw.githubusercontent.com/shihab-aai/UrTV/" + BuildConfig.BRANCH + "/dist/";
+    static final String URL_PAGE = PAGE_DIR + "tv.html";
     static final long INTERVAL_MS = 6L * 3600 * 1000;
 
     private static final String OFF = "التحديث التلقائي متوقف";
     private static final String RECENT = "تم الفحص مؤخراً";
-    private static final String LATEST_URL = "https://github.com/tshi-dev/UrTV/releases/latest";
-    private static final String VERSION_URL = "https://github.com/tshi-dev/UrTV/releases/download/apk-latest/version.txt";
-    private static final String NEXT_VERSION_URL = "https://github.com/tshi-dev/UrTV/releases/download/apk-next/version.txt";
+    private static final String RELEASES = "https://github.com/shihab-aai/UrTV/releases/";
+    private static final String LATEST_URL = RELEASES + "latest";
+    private static final String VERSION_URL = RELEASES + "download/apk-latest/version.txt";
+    private static final String NEXT_VERSION_URL = RELEASES + "download/apk-next/version.txt";
 
     private Updater() {}
 
@@ -31,7 +32,7 @@ final class Updater {
      * «اللغة» (docs/ENGLISH.md): each language has its own page, Tr.pageName(lang), the same name in dist/, in the APK's assets and in web/
      * (tv.html, Arabic, exactly as before; tv-en.html), each with its own stamp and its own ETag.
      */
-    static String pageUrl(String lang) { return Tr.AR.equals(Tr.norm(lang)) ? URL_PAGE : PhotoCache.REPO + "dist/" + Tr.pageName(lang); }
+    static String pageUrl(String lang) { return Tr.AR.equals(Tr.norm(lang)) ? URL_PAGE : PAGE_DIR + Tr.pageName(lang); }
     static File pageFile(Context c, String lang) { return Tr.AR.equals(Tr.norm(lang)) ? pageFile(c) : new File(c.getFilesDir(), "web/" + Tr.pageName(lang)); }
     private static String etagKey(String lang) { return Tr.AR.equals(Tr.norm(lang)) ? "etag" : "etag:" + Tr.pageName(lang); }
     /**

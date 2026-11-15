@@ -23,7 +23,7 @@ android {
         // installed from Downloader; it was 30. The Wi-Fi name still needs ACCESS_FINE_LOCATION, granted over ADB at install, as on 30 (any target 29+).
         targetSdk 34
         // the same version as the screensaver (see android/app/build.gradle)
-        versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int)
+        versionCode((System.getenv('URTV_BUILD_NUMBER') ?: System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int)
         versionName file('../../VERSION').text.trim()
         buildConfigField "String", "MARKETING", "\"${file('../../VERSION').text.trim()}\""
         // the PIN recovery code's salted PBKDF2 record, never the code (AGENTS.md, «PIN recovery»): from URTV_PIN_RECOVERY (CI: the

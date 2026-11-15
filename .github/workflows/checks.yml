@@ -14,11 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       # Thmanyah's licence allows its files only inside a built product: they live in the private
       # tshi-dev/urtv-fonts and are put in place here, never committed to this repository
       - uses: actions/checkout@v4
         with:
-          repository: tshi-dev/urtv-fonts
+          repository: ${{ vars.URTV_FONTS_REPOSITORY || 'tshi-dev/urtv-fonts' }}
           token: ${{ secrets.FONTS_TOKEN }}
           path: .fonts-private
       - name: Private fonts
@@ -38,3 +40,5 @@ jobs:
       - run: pip install fonttools brotli pillow -r .github/tools/cities-world/requirements.txt
       - run: npm install --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
       - run: tests/run.sh
+        env:
+          URTV_BASE_REF: ${{ github.repository == 'shihab-aai/UrTV' && 'HEAD^' || 'origin/next' }}

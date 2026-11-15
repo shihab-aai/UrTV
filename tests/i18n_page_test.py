@@ -103,7 +103,7 @@ check("Updater.pageBase: null for Arabic; English: the newer of web/tv-en.html a
       "return null;   // Arabic" in upd and 'return "file:///android_asset/" + Tr.pageName(lang);' in upd and "if (hasAsset(c, lang))" in upd)
 check("Updater downloads the page of «اللغة» into web/ under the same name, with its own ETag; Arabic keeps URL_PAGE, web/tv.html and \"etag\"",
       "new URL(pageUrl(lang))" in upd and "pageFile(c, lang)" in upd and 'Tr.AR.equals(Tr.norm(lang)) ? "etag" : "etag:" + Tr.pageName(lang)' in upd
-      and 'PhotoCache.REPO + "dist/tv.html"' in upd and 'new File(c.getFilesDir(), "web/tv.html")' in upd)
+      and 'PAGE_DIR + "tv.html"' in upd and 'new File(c.getFilesDir(), "web/tv.html")' in upd)
 check("Updater: each page on its own clock (\"lastCheck\" for Arabic as always, \"lastCheck:tv-en.html\" for English): a switch to English asks at once",
       upd.count('"lastCheck" + checkSuffix(') == 3 and 'Tr.AR.equals(Tr.norm(lang)) ? "" : ":" + Tr.pageName(lang)' in upd
       and 'getLong("lastCheck", 0)' not in upd and 'putLong("lastCheck", now)' not in upd)
