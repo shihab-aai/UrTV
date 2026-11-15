@@ -26,7 +26,10 @@ page = text(ROOT / "src/template.html")
 prefs, rcv, cache, shrink = (text(SAVER / n) for n in ("Prefs.java", "SaverReceiver.java", "PhotoCache.java", "PhotoShrink.java"))
 card, prov, ownj = text(HOME / "HomeCard.java"), text(SAVER / "ConfigProvider.java"), text(SAVER / "Own.java")
 
-check("page: album is a card kind with a title and a renderer", "'album']" in page and "album:'ألبوم صوري'" in page and "albumCard(card)" in page)
+card_kinds = re.search(r"const CARD_KINDS = \[([^\]]+)\]", page)
+check("page: album is a card kind with a title and a renderer",
+      card_kinds is not None and "'album'" in card_kinds.group(1)
+      and "album:'ألبوم صوري'" in page and "albumCard(card)" in page)
 check("page: the speed is 4 s, 10 s or a minute, the date is on by default",
       "_Q.get('albummode') === 'minute' ? 60000 : _Q.get('albummode') === 'ten' ? 10000 : 4000" in page and "_Q.get('albumdate') !== '0'" in page)
 check("page (4.3.1): fill (cover, the top third kept), tall (about twice the height, the card's zoom steps down where it does not fit), no title above the photo: each reads its own #albumfit=fill, #albumsize=tall, #albumtitle=0 and changes nothing else",
