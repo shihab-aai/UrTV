@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- the build: UTC time (YYYYMMDDHHMMSS) of the newest commit of the page's sources, put in by src/build.py. The app loads the page with the newer stamp (its own
      copy or a downloaded one), never by file time, and does not keep a download whose stamp is older than its own (Updater, PageStamp). -->
-<meta name="urtv-build" content="20261115083149">
+<meta name="urtv-build" content="20261115090034">
 <title>Your TV Screen</title>
 <style>
   @font-face{font-family:'Thmanyah';font-weight:300;font-style:normal;font-display:block;src:url("https://raw.githubusercontent.com/tshi-dev/UrTV/master/assets/fonts/Thmanyah-Light.woff2") format("woff2")}
@@ -325,6 +325,9 @@
     pointer-events:none;border:1px solid rgba(var(--gold-rgb),.75)}
   html.cs-dark3 .week .dia.t,html.cs-glass3 .week .dia.t{top:calc(5px + .4vh);transform:translate(-50%,-50%) rotate(45deg)}
   html.cs-dark3 .week .dia.b,html.cs-glass3 .week .dia.b{bottom:calc(5px + .4vh);transform:translate(-50%,50%) rotate(45deg)}
+  @media (max-height:600px){
+    html:not(.widget).cs-dark3 .week .dia,html:not(.widget).cs-glass3 .week .dia{width:7px;height:7px}
+  }
   html.cs-dark3 .week .hd,html.cs-glass3 .week .hd{justify-content:center}
   html.cs-dark3 .week .hd::after,html.cs-glass3 .week .hd::after{display:none}
 
@@ -2316,6 +2319,7 @@ const TEAM_SHORT = {
   'Paris SG':'PSG', 'Bayern Munich':'Bayern', 'Borussia Dortmund':'Dortmund', 'Borussia Mönchengladbach':'Gladbach',
   'Bayer Leverkusen':'Leverkusen', 'Eintracht Frankfurt':'Frankfurt', 'Nottingham Forest':'Forest', 'Crystal Palace':'Palace',
   'Wolverhampton Wanderers':'Wolves', 'Sporting CP':'Sporting', 'LA Galaxy':'Galaxy', 'National Bank of Egypt':'NBE',
+  'Sporting Kansas City':'Sporting KC', 'San Jose Earthquakes':'San Jose',
   ...{"Atlanta Hawks":"Hawks","Boston Celtics":"Celtics","Brooklyn Nets":"Nets","Charlotte Hornets":"Hornets","Chicago Bulls":"Bulls","Cleveland Cavaliers":"Cavaliers","Dallas Mavericks":"Mavericks","Denver Nuggets":"Nuggets","Detroit Pistons":"Pistons","Golden State Warriors":"Warriors","Houston Rockets":"Rockets","Indiana Pacers":"Pacers","Los Angeles Clippers":"Clippers","Los Angeles Lakers":"Lakers","Memphis Grizzlies":"Grizzlies","Miami Heat":"Heat","Milwaukee Bucks":"Bucks","Minnesota Timberwolves":"Timberwolves","New Orleans Pelicans":"Pelicans","New York Knicks":"Knicks","Oklahoma City Thunder":"Thunder","Orlando Magic":"Magic","Philadelphia 76ers":"76ers","Phoenix Suns":"Suns","Portland Trail Blazers":"Trail Blazers","Sacramento Kings":"Kings","San Antonio Spurs":"Spurs","Toronto Raptors":"Raptors","Utah Jazz":"Jazz","Washington Wizards":"Wizards","Arizona Cardinals":"Cardinals","Atlanta Falcons":"Falcons","Baltimore Ravens":"Ravens","Buffalo Bills":"Bills","Carolina Panthers":"Panthers","Chicago Bears":"Bears","Cincinnati Bengals":"Bengals","Cleveland Browns":"Browns","Dallas Cowboys":"Cowboys","Denver Broncos":"Broncos","Detroit Lions":"Lions","Green Bay Packers":"Packers","Houston Texans":"Texans","Indianapolis Colts":"Colts","Jacksonville Jaguars":"Jaguars","Kansas City Chiefs":"Chiefs","Las Vegas Raiders":"Raiders","Los Angeles Chargers":"Chargers","Los Angeles Rams":"Rams","Miami Dolphins":"Dolphins","Minnesota Vikings":"Vikings","New England Patriots":"Patriots","New Orleans Saints":"Saints","New York Giants":"Giants","New York Jets":"Jets","Philadelphia Eagles":"Eagles","Pittsburgh Steelers":"Steelers","San Francisco 49ers":"49ers","Seattle Seahawks":"Seahawks","Tampa Bay Buccaneers":"Buccaneers","Tennessee Titans":"Titans","Washington Commanders":"Commanders"},   // NBA and NFL: the nickname without the city («ليكرز»), made by src/build.py from teams.json
 };
 const FIT_STEPS = [1, .92, .85, .78, .72];

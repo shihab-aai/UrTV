@@ -338,6 +338,9 @@
     pointer-events:none;border:1px solid rgba(var(--gold-rgb),.75)}
   html.cs-dark3 .week .dia.t,html.cs-glass3 .week .dia.t{top:calc(5px + .4vh);transform:translate(-50%,-50%) rotate(45deg)}
   html.cs-dark3 .week .dia.b,html.cs-glass3 .week .dia.b{bottom:calc(5px + .4vh);transform:translate(-50%,50%) rotate(45deg)}
+  @media (max-height:600px){
+    html:not(.widget).cs-dark3 .week .dia,html:not(.widget).cs-glass3 .week .dia{width:7px;height:7px}
+  }
   html.cs-dark3 .week .hd,html.cs-glass3 .week .hd{justify-content:center}
   html.cs-dark3 .week .hd::after,html.cs-glass3 .week .hd::after{display:none}
 
@@ -2337,6 +2340,7 @@ const TEAM_SHORT = {
   'باريس سان جيرمان':'باريس', 'بايرن ميونخ':'بايرن', 'بوروسيا دورتموند':'دورتموند', 'بوروسيا مونشنغلادباخ':'مونشنغلادباخ',
   'باير ليفركوزن':'ليفركوزن', 'آينتراخت فرانكفورت':'فرانكفورت', 'نوتنغهام فورست':'فورست', 'كريستال بالاس':'بالاس',
   'وولفرهامبتون':'وولفز', 'سبورتينغ لشبونة':'سبورتينغ', 'لوس أنجلوس جالاكسي':'جالاكسي', 'البنك الأهلي المصري':'البنك الأهلي',
+  'سبورتينغ كانساس سيتي':'كانساس سيتي', 'سان خوسيه إيرثكويكس':'سان خوسيه',
   ...__TEAMS_SHORT__,   // NBA and NFL: the nickname without the city («ليكرز»), made by src/build.py from teams.json
 };
 const FIT_STEPS = [1, .92, .85, .78, .72];
