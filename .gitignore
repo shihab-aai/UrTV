@@ -25,10 +25,11 @@ android/pin-recovery.local
 /unsplash/
 /quran-verify/
 
-# Thmanyah: its licence allows the files only inside a built product, so they come from the private
-# tshi-dev/urtv-fonts repo at build time (CI), never from here; urtv.html inlines them, so it is not committed either
+# Local and generated font assets, including legacy filename aliases. The standalone page embeds them.
 assets/fonts/Thmanyah*.woff2
 android/launcher/src/main/assets/fonts/Thmanyah*.otf
+assets/fonts/NotoSansArabic-OFL.txt
+android/launcher/src/main/assets/fonts/NotoSansArabic-OFL.txt
 dist/urtv.html
 .fonts-private/
 

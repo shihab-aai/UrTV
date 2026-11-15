@@ -3,7 +3,7 @@ name: Build APKs
 on:
   push:
     branches: [master, next]   # next: a test build in apk-next, before anything reaches apk-latest
-    paths: ['src/**', 'assets/**', 'android/**', 'VERSION', '.github/workflows/android.yml']
+    paths: ['src/**', 'assets/**', 'android/**', 'VERSION', '.github/workflows/android.yml', '.github/actions/open-fonts/**', '.github/tools/install_open_fonts.py']
     # a release whose last commit touches none of these builds nothing (4.1's first try): its merge then needs a change here or in VERSION
     # 4.2 too: a fix after the release merge that touches only .github/tools (the cities generator) builds nothing, and its own build is this line, and so is the veil test's CI tolerance after it
   workflow_dispatch:
@@ -25,19 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Thmanyah's licence allows its files only inside a built product: they live in the private
-      # tshi-dev/urtv-fonts and are put in place here, never committed to this repository
-      - uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.URTV_FONTS_REPOSITORY || 'tshi-dev/urtv-fonts' }}
-          token: ${{ secrets.FONTS_TOKEN }}
-          path: .fonts-private
-      - name: Private fonts
-        run: |
-          cp .fonts-private/web/*.woff2 assets/fonts/
-          mkdir -p android/launcher/src/main/assets/fonts
-          cp .fonts-private/android/*.otf android/launcher/src/main/assets/fonts/
-          rm -rf .fonts-private
+      - uses: ./.github/actions/open-fonts
 
       # the name people read (VERSION at the repository root, «4.0»): the release names and bodies use it; the apps read the same file in Gradle
       - name: Version

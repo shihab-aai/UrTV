@@ -1,23 +1,14 @@
 #!/usr/bin/env python3
-"""Make the apps' signing key once, on your own computer, for the repository's secrets.
+"""Prepare both apps' signing key outside the repository.
 
-The key signs both APKs; Android only installs an update signed with the same key, so keep the file and the
-password it prints somewhere safe (a password manager). It is written to your home folder, outside the repo, and
-must never be committed.
-
-  pip install cryptography
-  python .github/tools/make_signing_key.py
-
-With GitHub CLI installed and signed in (`gh auth login`), it stores both secrets in the repository itself and
-prints nothing secret. Without it, it prints them, for GitHub: the repository → Settings → Secrets and variables →
-Actions → New repository secret, twice:
-  ANDROID_KEYSTORE_B64       the long text it prints
-  ANDROID_KEYSTORE_PASSWORD  the password it prints
-The builds sign with it from then on (CI refuses to build without it). TVs that have apps signed with another
-key need them installed again once (optimize/install.sh does that by itself; their settings start over).
+Install cryptography, then run this tool locally. Use --repo OWNER/REPOSITORY to
+upload the same key using a GitHub CLI credential with Actions secrets access.
+Keep the saved files for every later update.
 """
+import argparse
 import base64
 import datetime
+import os
 import secrets
 import shutil
 import subprocess
@@ -31,7 +22,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 ALIAS = b"urtv"   # android/*/build.gradle signs with this alias
-REPO = "tshi-dev/UrTV"
+KEY_DIR = Path.home() / ".config" / "urtv-release"
 
 
 def make(password):
@@ -46,26 +37,45 @@ def make(password):
                                                  serialization.BestAvailableEncryption(password.encode()))
 
 
+def write_private(path, data):
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as file:
+        file.write(data)
+
+
 def main():
-    out = Path.home() / "urtv-signing-key.p12"
-    if out.exists():
-        sys.exit(f"{out} already exists: that is your key. Use it, or move it away first to make a new one.")
-    password = secrets.token_urlsafe(30)
-    data = make(password)
-    out.write_bytes(data)
-    (Path.home() / "urtv-signing-key-password.txt").write_text(password + "\n")
-    print(f"Key saved to {out}, its password to {Path.home() / 'urtv-signing-key-password.txt'}")
-    print("Keep both somewhere safe (a password manager, a USB stick); never commit them.\n")
-    secret = {"ANDROID_KEYSTORE_B64": base64.b64encode(data).decode(), "ANDROID_KEYSTORE_PASSWORD": password}
-    gh = gh_ready()
-    if gh:
-        for name, value in secret.items():   # the value goes in on stdin, never on the command line
-            subprocess.run([gh, "secret", "set", name, "--repo", REPO], input=value, text=True, check=True)
-        print(f"Both secrets are now in {REPO}. The next build signs with this key.")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", help="GitHub owner/repository to receive the two Actions secrets")
+    args = parser.parse_args()
+    key_file = KEY_DIR / "signing.p12"
+    password_file = KEY_DIR / "signing-password"
+    KEY_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if key_file.exists() != password_file.exists():
+        sys.exit("Restore the missing signing file before continuing.")
+    if key_file.exists():
+        data = key_file.read_bytes()
+        password = password_file.read_text(encoding="utf-8").strip()
+        key, cert, _ = pkcs12.load_key_and_certificates(data, password.encode())
+        if key is None or cert is None:
+            sys.exit("The saved signing files lack a private key or certificate.")
+    else:
+        password = secrets.token_urlsafe(30)
+        data = make(password)
+        write_private(key_file, data)
+        write_private(password_file, (password + "\n").encode())
+    print("Signing files available in ~/.config/urtv-release.")
+    if not args.repo:
         return
-    print("GitHub CLI isn't signed in, so add these two secrets by hand (see the top of this file):\n")
-    for name, value in secret.items():
-        print(f"{name}:\n{value}\n")
+    gh = gh_ready()
+    if not gh:
+        sys.exit("An authenticated GitHub CLI is required to upload the Actions secrets.")
+    secrets_to_upload = {
+        "ANDROID_KEYSTORE_B64": base64.b64encode(data).decode(),
+        "ANDROID_KEYSTORE_PASSWORD": password,
+    }
+    for name, value in secrets_to_upload.items():
+        subprocess.run([gh, "secret", "set", name, "--repo", args.repo], input=value, text=True, check=True)
+    print(f"Both signing secrets are set in {args.repo}.")
 
 
 def gh_ready():

@@ -17,16 +17,16 @@ Thank you. Small, safe changes are the best ones: a fix, a test, a clearer line 
 
 The launcher and screensaver built here read APK updates and the screensaver page from this fork.
 
-- In GitHub repository settings, set `FONTS_TOKEN` to a read-only token for an approved private font repository. Set the Actions variable `URTV_FONTS_REPOSITORY` if that repository differs from the upstream font repository.
-- The release workflow uses `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASSWORD`. For an in-place migration, the release must be signed with the key of the installed apps. Use the maintainers' authorized signing process.
-- Set the Actions variable `URTV_BUILD_OFFSET` so the first fork build number (the workflow run number plus the offset) is greater than both installed build numbers. Keep the offset fixed for later releases. The workflow uses that number in both APKs and their `version.txt`.
-- After the matching-signed `apk-latest` release is published, use `URTV_RELEASE_REPO=shihab-aai/UrTV optimize/install.sh all` for the first migration, subject to the TV setup instructions. The new apps take subsequent updates from the fork.
+- CI fetches pinned Noto Sans Arabic from its public release (SIL Open Font License 1.1). For local tests, install `fonttools` and `brotli`, then run `python3 .github/tools/install_open_fonts.py`. The generated files use the existing asset names for compatibility.
+- For the first fork release, prepare and keep a dedicated key with `python3 .github/tools/make_signing_key.py` (requires `cryptography`). To upload it with an authenticated GitHub CLI, add `--repo shihab-aai/UrTV`. The workflow uses the `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASSWORD` secrets to sign both apps.
+- An in-place migration requires the key of the installed apps and a higher build number. The optional Actions variable `URTV_BUILD_OFFSET` adds a fixed offset to the workflow run number for both APKs and `version.txt`. For a clean install, the fork can use its dedicated key and its own build numbers.
+- Once the signed `apk-latest` release is ready, follow the TV setup instructions with `URTV_RELEASE_REPO=shihab-aai/UrTV`. The new apps take subsequent updates from the fork.
 
 ## Rules
 
 - Read [AGENTS.md](AGENTS.md); it applies to people and to AI agents alike. In short: never build or install your own APK,
   never turn auto-update off, never skip or disable a test to make it pass, never override a `!!` guard.
-- Never `git add` the font files (`assets/fonts/`): they come from a private repository in CI.
+- Keep the generated font files out of Git.
 - No personal data anywhere (code, docs, tests, reports): no IP address, serial, Wi-Fi name, user name or file path.
   Tests use obvious placeholders (`2001:db8::`, `192.0.2.x`, `Example Name`).
 - Defaults stay as they are unless it is a bug. Nothing that can break a setup in progress or a TV already set up.

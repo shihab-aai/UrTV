@@ -26,21 +26,9 @@ jobs:
         with:
           ref: master
           path: before-tree
-      # Thmanyah comes from the private fonts repository, as in android.yml: built in, never committed
-      - uses: actions/checkout@v4
+      - uses: ./.github/actions/open-fonts
         with:
-          repository: tshi-dev/urtv-fonts
-          token: ${{ secrets.FONTS_TOKEN }}
-          path: .fonts-private
-      - name: Private fonts
-        run: |
-          for t in . before-tree; do
-            mkdir -p "$t/android/launcher/src/main/assets/fonts"
-            cp .fonts-private/android/*.otf "$t/android/launcher/src/main/assets/fonts/"
-          done
-          cp .fonts-private/web/*.woff2 assets/fonts/
-          cp .fonts-private/web/*.woff2 before-tree/assets/fonts/
-          rm -rf .fonts-private
+          comparison-root: before-tree
       - name: Build the page
         run: |
           python3 src/build.py

@@ -89,6 +89,9 @@ def files(extra=None):
             html = html.replace(url, "fonts/" + name)
         else:
             html = html.replace(url, "data:,")
+    font_license = ROOT / "assets/fonts/NotoSansArabic-OFL.txt"
+    if font_license.is_file():
+        out["fonts/NotoSansArabic-OFL.txt"] = font_license.read_bytes()
     for src in sorted((ROOT / "assets" / "backgrounds").glob("*.jpg")):
         url = REPO + "assets/backgrounds/" + src.name
         if url in html:

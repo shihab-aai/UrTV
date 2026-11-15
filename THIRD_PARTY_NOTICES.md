@@ -1,6 +1,8 @@
 # Third-party notices
 
 Code and ideas taken from other projects, with their licenses. Fonts, photos and lists carry their own notices next to them:
+
+- The fork builds with Noto Sans Arabic v2.013, distributed under the SIL Open Font License 1.1. The installer downloads the pinned upstream release and includes its OFL notice with the packaged fonts. [Noto Sans Arabic release](https://github.com/notofonts/arabic/releases/tag/NotoSansArabic-v2.013)
 `assets/fonts/*-NOTICE.txt` and `*-OFL.txt`, `docs/PHOTO-CREDITS.md`, `optimize/lists/community/LICENSE-CleanYourTV.txt`, and the
 launcher's origin in `android/launcher/LICENSE-tv-home`.
 

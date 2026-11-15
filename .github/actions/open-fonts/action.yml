@@ -1,0 +1,23 @@
+name: Install open fonts
+description: Install pinned Noto Arabic font assets for UrTV builds and tests.
+inputs:
+  comparison-root:
+    description: An additional checkout to populate with the same fonts
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - shell: bash
+      env:
+        COMPARISON_ROOT: ${{ inputs.comparison-root }}
+      run: |
+        python -m venv "$RUNNER_TEMP/urtv-open-fonts"
+        python_bin="$RUNNER_TEMP/urtv-open-fonts/bin/python"
+        "$python_bin" -m pip install fonttools==4.68.0 brotli==1.2.1
+        roots=(.)
+        if [[ -n "$COMPARISON_ROOT" ]]; then roots+=("$COMPARISON_ROOT"); fi
+        "$python_bin" .github/tools/install_open_fonts.py "${roots[@]}"

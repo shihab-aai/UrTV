@@ -33,11 +33,19 @@ def tracked(*globs):
 
 
 # ---- build
-# Thmanyah's licence allows its files only inside a built product: never in this public repository (CI puts them in place)
+# Generated font assets and the standalone page that embeds them stay out of Git.
 leaked = [str(f.relative_to(ROOT)) for f in tracked("*Thmanyah*") + tracked("dist/urtv.html")]
-check("Thmanyah's files and the page that inlines them are not committed", not leaked, leaked)
-missing_fonts = [f for f in ("Thmanyah-Regular.woff2", "ThmanyahDisplay-Bold.woff2") if not (ROOT / "assets/fonts" / f).is_file()]
-check("Thmanyah is in place for the build (CI: the private urtv-fonts checkout; locally: your own copy)", not missing_fonts, missing_fonts)
+check("Generated font files and the page that inlines them are not committed", not leaked, leaked)
+font_dir = ROOT / "assets/fonts"
+font_names = ("Thmanyah-Light.woff2", "Thmanyah-Regular.woff2", "Thmanyah-Medium.woff2", "ThmanyahDisplay-Bold.woff2")
+missing_fonts = [f for f in (*font_names, "NotoSansArabic-OFL.txt") if not (font_dir / f).is_file()]
+check("Noto Sans Arabic assets and license are in place (install_open_fonts.py)", not missing_fonts, missing_fonts)
+if not missing_fonts:
+    names = []
+    for f in font_names:
+        with TTFont(font_dir / f) as face:
+            names.append(face["name"].getBestFamilyName())
+    check("all body and heading assets contain Noto Sans Arabic", all(name and name.startswith("Noto Sans Arabic") for name in names), names)
 before = {n: (ROOT / "dist" / n).read_bytes() for n in ("tv.html", "tv-en.html") if (ROOT / "dist" / n).is_file()}
 r = subprocess.run([sys.executable, "src/build.py"], cwd=ROOT, capture_output=True, text=True)
 check("src/build.py runs", r.returncode == 0, r.stderr[-400:])
@@ -235,7 +243,7 @@ text = "".join(v["surah"] for v in verses) + "".join(t for h in hadith for _, t 
     + "".join(h["source"] for h in hadith) + "".join(w["text"] + w["source"] for w in wisdom) \
     + "".join(d["source"] + ("" if d.get("quran") else d["text"]) for d in adhkar)
 missing = sorted({c for c in text if not c.isspace() and ord(c) not in font and c not in "ﷺ﴿﴾"})   # those: NotoMarks
-check("verse/hadith text: every character in Thmanyah", not missing, missing)
+check("verse/hadith text: every character in Noto Sans Arabic", not missing, missing)
 # the Quran text (verses, Quranic adhkar) is the KFGQPC Uthmani text, drawn by its own font, whole and unmodified
 hafs = TTFont(ROOT / "assets/fonts/UthmanicHafs-v30.woff2")
 quran = "".join(v["text"] for v in verses) + "".join(d["text"] for d in adhkar if d.get("quran"))
@@ -253,7 +261,7 @@ check("NotoMarks has ﷺ ﴿ ﴾", {0xFDFA, 0xFD3E, 0xFD3F} <= marks)
 team_ar = json.loads((ROOT / "assets/shared/teams-ar.json").read_text(encoding="utf-8"))
 names = "".join(v for v in (team_ar.values() if isinstance(team_ar, dict) else []) if isinstance(v, str))
 missing = sorted({c for c in names if not c.isspace() and ord(c) not in font})
-check("Arabic team names: every character in Thmanyah", not missing, missing)
+check("Arabic team names: every character in Noto Sans Arabic", not missing, missing)
 
 # ---- the clubs list (assets/shared/teams.json, built by .github/tools/team_ids.py in CI)
 from team_ids import ARAB, KNOWN, LEAGUES, NATIONAL, NATIONAL_LEAGUE, plain_ar, team_key   # noqa: E402
@@ -308,7 +316,7 @@ bidi = [f"{f.name}: {m.group(0)[:40]}" for f, src in java.items()
 bidi += [f"{x.name}: {m.group(0)[:40]}" for x in (ROOT / "android").glob("*/src/main/res/values*/*.xml")
          for m in re.finditer(r'<string [^>]*>[A-Za-z]+ [\u0600-\u06FF][^<]*', x.read_text(encoding="utf-8"))]
 check("java: no Arabic string starts with a Latin word without an isolate", not bidi, bidi)
-# the select key is «اختيار» in the hints, never the Latin word OK (it falls out of Thmanyah and shows in the system font)
+# the select key is «اختيار» in the hints, never the Latin word OK
 okword = [f"{f.name}: {m.group(0)[:40]}" for f, src in java.items()
           for m in re.finditer(r'"[^"\n]*[\u0600-\u06FF][^"\n]*"', src) if re.search(r"\bOK\b", m.group(0))]
 okword += [f"{x.name}: {m.group(0)[:40]}" for x in (ROOT / "android").glob("*/src/main/res/values*/*.xml")
@@ -376,7 +384,7 @@ arr = {a.get("name"): [i.text for i in a] for a in cfg.findall("string-array")}
 check("launcher: no dock app is also hidden", not set(arr["dock_apps"]) & set(arr["hidden_apps"]))
 check("launcher: screensaver app not hidden", "sa.urtv.screensaver" not in arr["hidden_apps"])
 
-# Arabic app names: package|name rows; the names are drawn with Thmanyah, so it needs a glyph for each character
+# Arabic app names: package|name rows; the names are drawn with Noto Sans Arabic, so it needs a glyph for each character
 app_rows = [(i.text or "").split("|", 1) for i in ET.parse(ROOT / "android/launcher/src/main/res/values/app_names.xml")
             .getroot().find("string-array")]
 pkg_re = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$")
@@ -386,7 +394,7 @@ check("app names: every key is a valid package name", all(pkg_re.match(r[0]) for
 check("app names: every name has Arabic letters", all(len(r) == 2 and arabic_re.search(r[1]) for r in app_rows), [r[0] for r in app_rows if len(r) < 2 or not arabic_re.search(r[1])])
 check("app names: no package twice", len({r[0] for r in app_rows}) == len(app_rows))
 missing = sorted({c for r in app_rows for c in r[-1] if not c.isspace() and ord(c) not in font})
-check("app names: every character in Thmanyah", not missing, missing)
+check("app names: every character in Noto Sans Arabic", not missing, missing)
 
 # the launcher Java compiles as far as it can without the Android SDK: errors about missing Android classes are ignored
 java_src = sorted((ROOT / "android/launcher/src/main/java").rglob("*.java"))

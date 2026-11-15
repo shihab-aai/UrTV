@@ -489,7 +489,7 @@ def main():
         page = src
         for token, font in FONTS.items():
             path = ROOT / "assets/fonts" / font
-            if inline and not path.is_file():   # Thmanyah comes from the private urtv-fonts repo (CI, or a copy you have):
+            if inline and not path.is_file():   # install_open_fonts.py prepares the local font assets
                 page = page.replace(token, "data:,")   # without it this page falls back to the system's Arabic font
             else:
                 page = page.replace(token, data_uri(path, "font/woff2") if inline else REPO + "assets/fonts/" + font)
@@ -497,6 +497,9 @@ def main():
         for bg in bgs:
             u = data_uri(bg_dir / bg["file"], "image/jpeg") if inline else REPO + "assets/backgrounds/" + bg["file"]
             entries.append(f'  {{u:"{u}", c:{js_json(bg["credit"])}, d:{bg["brightness"]}}}')
+        license_file = ROOT / "assets/fonts/NotoSansArabic-OFL.txt"
+        if inline and license_file.is_file():
+            page = page.replace("</html>", "<!--\n" + license_file.read_text(encoding="utf-8") + "\n-->\n</html>", 1)
         out = ROOT / "dist" / name
         out.parent.mkdir(exist_ok=True)
         out.write_text(strip_css_comments(page.replace("__BG_SET__", ",\n".join(entries))), encoding="utf-8")
