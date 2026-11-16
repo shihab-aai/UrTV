@@ -663,7 +663,7 @@ check("an older screensaver without the album: the two are left out of the file"
 saver_now = (ROOT / "optimize/saver.sh").read_text(encoding="utf-8")
 check("saver.sh: albummode, albumdate, albumtitle, albumfit and albumsize are commands in the usage (each refuses a wrong word), and album is in the card list",
       all(f"  {k}) " in saver_now and f"optimize/saver.sh {k} " in saver_now.split("set -euo")[0] for k in ("albummode", "albumdate", "albumtitle", "albumfit", "albumsize", "cleartext"))
-      and "albummode seconds|ten|minute" in saver_now and "albumfit fit|fill" in saver_now and "albumsize normal|tall" in saver_now and "albumtitle on|off" in saver_now and "smart today album none" in saver_now)
+      and "albummode seconds|ten|minute" in saver_now and "albumfit fit|fill" in saver_now and "albumsize normal|tall" in saver_now and "albumtitle on|off" in saver_now and "smart today album hallbookings none" in saver_now)
 # ---- 4.3 «اللون والتحكم»: accent, baropacity, walldim, focusstyle
 glass = (ROOT / "android/app/src/main/java/sa/urtv/screensaver/GlassStyle.java").read_text(encoding="utf-8")
 recv = (ROOT / "android/app/src/main/java/sa/urtv/screensaver/SaverReceiver.java").read_text(encoding="utf-8")
