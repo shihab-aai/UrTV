@@ -35,7 +35,7 @@ tpl, saver = read(ROOT / "src/template.html"), read(ROOT / "optimize/saver.sh")
 panels = re.findall(r'\{"([a-z]+)", "[^"]+"\}', re.search(r"PANELS = \{(.*?)\n    \};", prefs, re.S).group(1))
 home_only = re.search(r'static boolean homeOnly\(String v\) \{ return (.*?); \}', prefs)
 home_only_cards = re.findall(r'"([a-z]+)"\.equals\(v\)', home_only.group(1)) if home_only else []
-check("Prefs: next prayer and hall bookings are home-screen only", set(home_only_cards) == {"nextprayer", "hallbookings"}, home_only_cards)
+check("Prefs: next prayer is home-screen only; hall bookings can appear on either screen", set(home_only_cards) == {"nextprayer"} and "hallbookings" in panels, home_only_cards)
 check("Prefs: SAVER_PANELS is PANELS without the home-only cards", re.search(r"for \(String\[\] p : PANELS\) if \(!homeOnly\(p\[0\]\)\) out\.add\(p\);", prefs))
 cards = [p for p in panels if p not in home_only_cards]
 

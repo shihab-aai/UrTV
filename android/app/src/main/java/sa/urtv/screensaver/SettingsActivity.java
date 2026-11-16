@@ -408,7 +408,7 @@ public class SettingsActivity extends Activity {
             row(HOME_CARD_NAMES[k], Prefs.panelLabel(prefs.homePanelAt(k), "بدون"), R.drawable.ic_eye,
                 new Runnable() { public void run() { pickPanel(place); } });
         }
-        if (prefs.homePanels().contains("hallbookings"))
+        if (prefs.homePanels().contains("hallbookings") || "hallbookings".equals(prefs.panel()) || "hallbookings".equals(prefs.panel2()))
             row("رمز عرض حجوزات القاعات", prefs.hallBookingsToken().isEmpty() ? "أضف رمز حساب العرض" : "تم حفظ الرمز",
                 R.drawable.ic_settings, this::editHallBookingsToken);
         row("التحية والطقس", prefs.greeting() ? "تعمل" : "متوقفة", R.drawable.ic_eye,

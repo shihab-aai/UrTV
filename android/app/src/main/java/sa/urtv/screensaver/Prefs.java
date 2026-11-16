@@ -270,7 +270,7 @@ final class Prefs {
     };
 
     /** Cards that are available on the home screen only. */
-    static boolean homeOnly(String v) { return "nextprayer".equals(v) || "hallbookings".equals(v); }
+    static boolean homeOnly(String v) { return "nextprayer".equals(v); }
 
     String hallBookingsToken() { return sp.getString("hall_bookings_token", ""); }
     void setHallBookingsToken(String token) {
@@ -611,7 +611,8 @@ final class Prefs {
      * cards never show it.
      */
     String screenUrl(Context c, boolean start) {
-        String url = dashboardUrl(c) + CleanMask.fragment(CleanMask.state(c));   // «UrTV النظيف»: the page shows the photo and the clock only
+        String url = dashboardUrl(c) + CleanMask.fragment(CleanMask.state(c))
+            + (("hallbookings".equals(panel()) || "hallbookings".equals(panel2())) ? "&hallbookings=1" : "");   // only the screen saver needs this feed
         if (!cityNoteDue()) return url;
         if (start) sp.edit().putInt("cityNoteShown", sp.getInt("cityNoteShown", 0) + 1).apply();
         return url + "&citynote=1";
@@ -623,7 +624,8 @@ final class Prefs {
      */
     String previewUrl(Context c, String panel, String cardStyle) {
         String frag = fragment().replaceAll("(^|&)(panel|panel2|week|cardstyle|home_panel)=[^&]*", "");
-        return pageBase(c) + "#" + frag + "&panel=" + panel + "&cardstyle=" + cardStyle + "&widget=1";
+        return pageBase(c) + "#" + frag + "&panel=" + panel + "&cardstyle=" + cardStyle + "&widget=1"
+            + ("hallbookings".equals(panel) ? "&hallbookings=1" : "");
     }
 
     /**

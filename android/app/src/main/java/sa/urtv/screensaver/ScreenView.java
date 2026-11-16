@@ -38,6 +38,7 @@ final class ScreenView {
         w.setOverScrollMode(View.OVER_SCROLL_NEVER);
         final Context app = c.getApplicationContext();   // the client must not keep the dream or activity alive
         final String pagePath = android.net.Uri.parse(url).getPath();   // the one file:// page this view may read besides the assets (S1)
+        final boolean showHallBookings = url.contains("&hallbookings=1");
         w.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(final WebView v, String u) {
@@ -50,6 +51,8 @@ final class ScreenView {
 
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
+                if (showHallBookings && HallBookings.FEED.equals(r.getUrl().toString()) && "GET".equals(r.getMethod()))
+                    return HallBookings.fetch(app);
                 if ("file".equals(r.getUrl().getScheme()) && !FileGate.allowed(r.getUrl().getPath(), pagePath)) {   // S1: the page reads its own file and the assets, nothing of the app's folders
                     return new WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", new java.util.HashMap<String, String>(), new java.io.ByteArrayInputStream(new byte[0]));
                 }

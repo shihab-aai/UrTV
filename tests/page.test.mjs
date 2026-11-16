@@ -60,7 +60,7 @@ const carry = async p => {   // what the page has kept is put back at the start 
 };
 const restart = async p => { await carry(p); await p.reload(); };
 
-// ---- Hall bookings use the Muscat date, render only escaped room names, and never restore yesterday's rows.
+// ---- Hall bookings use the Muscat date, render escaped titles and rooms, and never restore yesterday's rows.
 {
   const feed = 'https://hall-bookings.urtv.invalid/today.json';
   let requests = 0;
@@ -71,7 +71,7 @@ const restart = async p => { await carry(p); await p.reload(); };
       requests++;
       r.fulfill({ headers: { 'Access-Control-Allow-Origin': '*' }, json: {
         state: 'ok', date: '2026-11-16', rows: [
-          { ar: '', en: 'Room <b>One</b>', start: '00:00', end: '01:00' },
+          { ar: '', en: 'Room <b>One</b>', title: 'Booking <b>Title</b>', start: '00:00', end: '01:00' },
           { ar: '', en: 'Room Two', start: '01:00', end: '02:00' },
         ],
       } });
@@ -85,17 +85,39 @@ const restart = async p => { await carry(p); await p.reload(); };
     return {
       title: document.querySelector('.week .hd').textContent,
       current: document.querySelector('.hall-booking.active .v')?.textContent,
+      bookingTitle: document.querySelector('.hall-booking.active .booking-title')?.textContent,
       markup: !!document.querySelector('.hall-booking b'),
       saved: localStorage.getItem(SNAP_KEY),
     };
   });
   check('hall bookings: Muscat date and active booking, escaped text, no stored rows',
     !errors.length && requests === 1 && view.title === 'Hall Bookings Today' &&
-    view.current === 'Room <b>One</b>' && !view.markup && !view.saved?.includes('Room'), JSON.stringify({ view, errors }));
+    view.current === 'Room <b>One</b>Booking <b>Title</b>' &&
+    view.bookingTitle === 'Booking <b>Title</b>' && !view.markup && !view.saved?.includes('Room'), JSON.stringify({ view, errors }));
   await p.clock.setFixedTime(new Date('2026-11-16T20:00:00Z'));
   await p.evaluate(() => renderPanel(false, 'hallbookings'));
   check('hall bookings: previous day cleared at the Muscat date change', await p.locator('.hall-booking').count() === 0);
   await ctx.close();
+
+  const saver = await open('tv-en.html', 'lang=en&panel=hallbookings&hallbookings=1', {
+    width: 1280, height: 720, now: new Date('2026-11-15T20:30:00Z'),
+    net(r) {
+      if (r.request().url() !== feed) return false;
+      r.fulfill({ headers: { 'Access-Control-Allow-Origin': '*' }, json: {
+        state: 'ok', date: '2026-11-16', rows: [
+          { ar: 'قاعة الاجتماع', en: 'Meeting Hall', title: 'Staff meeting', start: '00:00', end: '01:00' },
+        ],
+      } });
+      return true;
+    },
+  });
+  await saver.p.locator('.hall-booking .booking-title').waitFor({ timeout: 3000 }).catch(() => {});
+  const saverRows = await saver.p.locator('.hall-booking .booking-title').count();
+  check('screen saver: hall booking title, room and time appear',
+    !saver.errors.length && saverRows === 1 && await saver.p.locator('.week .hd').textContent() === 'Hall Bookings Today' &&
+    await saver.p.locator('.hall-booking .booking-title').textContent() === 'Staff meeting' &&
+    (await saver.p.locator('.hall-booking').textContent()).includes('Meeting Hall'), saver.errors.join('; '));
+  await saver.ctx.close();
 }
 
 // ---- both pages, three screen sizes: no errors, shown, clock right, nothing off screen, Arabic digits

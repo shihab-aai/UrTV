@@ -21,7 +21,7 @@ import java.util.Locale;
 
 import javax.net.ssl.HttpsURLConnection;
 
-/** The home WebView receives only room names and times. Authentication and the calendar response stay in native code. */
+/** The home WebView receives only booking titles, room names, and times. Authentication and the calendar response stay in native code. */
 final class HallBookings {
     static final String FEED = "https://hall-bookings.urtv.invalid/today.json";
     private static final String CALENDAR = "https://hallsbooking.mtc.edu.om/api/calendar/";
@@ -76,6 +76,7 @@ final class HallBookings {
             String en = booking.isNull("hall_name_en") ? "" : booking.getString("hall_name_en").trim();
             if (ar.isEmpty() && en.isEmpty()) continue;
             rows.put(new JSONObject().put("ar", ar).put("en", en)
+                .put("title", booking.isNull("title") ? "" : booking.optString("title", "").trim())
                 .put("start", time(booking.optString("from_time", "")))
                 .put("end", time(booking.optString("to_time", ""))));
         }
