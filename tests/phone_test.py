@@ -97,7 +97,7 @@ check("the font route is answered before the session check, read from the APK's 
       api.index('startsWith("/fonts/")') < api.index("String secret = session(r);") and "if (!FONTS.contains(name)) return json(404" in api
       and "\"font/woff2\"" in api and "font-src 'self'" in api and '"fonts/" + name' in text(PHONE / "PhoneHost.java")
       and "if (!PhoneApi.FONTS.contains(name)) return null;" in text(PHONE / "PhoneHost.java")
-      and "from('../../assets/fonts') { include '*.woff2'; into 'fonts' }" in text(ROOT / "android/launcher/build.gradle"), "")
+      and "from('../../assets/fonts') { include '*.woff2', 'NotoSansArabic-OFL.txt'; into 'fonts' }" in text(ROOT / "android/launcher/build.gradle"), "")
 check("the page builds no HTML from data (no innerHTML, outerHTML, insertAdjacentHTML, document.write, eval, new Function)",
       not re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|setTimeout\(\s*['\"]", page), "")
 check("the page's one script carries the nonce the server fills in", page.count("<script") == 1 and '<script nonce="__NONCE__">' in page, "")
