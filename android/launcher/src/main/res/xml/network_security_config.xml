@@ -6,4 +6,12 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">radiojar.com</domain>
     </domain-config>
+    <!-- Older TVs may lack the HARICA root used by the Halls Booking server. -->
+    <domain-config>
+        <domain>hallsbooking.mtc.edu.om</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/harica_tls_rsa_root_ca_2021" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>

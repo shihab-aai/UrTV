@@ -5,8 +5,9 @@ the player; backup.qurango.net's random 500 tried again with a growing wait, Â«Ø
 
     python3 tests/stream_url_test.py
 """
-import re, shutil, subprocess, sys, tempfile
+import shutil, subprocess, sys, tempfile
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
 T = ROOT / "android/launcher/src/main/java/sa/urtv/home/tilawah"
@@ -43,11 +44,15 @@ check("a stop or another pick meanwhile wins (the generation and the address are
 err = svc[svc.index("private void onPlaybackError"):svc.index("private void playSurahAgain")]
 check("a player error on a station goes to RadioPolicy (4.3), which resolves the address again with the growing wait", "RadioPolicy.after(radioState, what, extra, radioAlt != null" in err
       and "startRadio(address, 0);" in err and "RadioPolicy.waitMs(radioState)" in err)
-nsc = (ROOT / "android/launcher/src/main/res/xml/network_security_config.xml").read_text(encoding="utf-8")
-check("cleartext only for radiojar.com (and its subdomains), everything else https", '<base-config cleartextTrafficPermitted="false" />' in nsc
-      and re.findall(r"<domain[^>]*>([^<]+)</domain>", nsc) == ["radiojar.com"] and 'includeSubdomains="true"' in nsc)
+nsc = ET.parse(ROOT / "android/launcher/src/main/res/xml/network_security_config.xml").getroot()
+base = nsc.find("base-config")
+cleartext_domains = [(domain.text, domain.get("includeSubdomains"))
+                     for config in nsc.iter("domain-config") if config.get("cleartextTrafficPermitted") == "true"
+                     for domain in config.iter("domain")]
+check("cleartext only for radiojar.com (and its subdomains), everything else https",
+      base is not None and base.get("cleartextTrafficPermitted") == "false"
+      and cleartext_domains == [("radiojar.com", "true")], cleartext_domains)
 man = (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
 check("the launcher's manifest uses the config, and does not allow cleartext for everything", 'android:networkSecurityConfig="@xml/network_security_config"' in man and 'usesCleartextTraffic="true"' not in man)
-check("the radiojar entry includes its nNN subdomains", re.search(r'<domain includeSubdomains="true">radiojar\.com</domain>', nsc) is not None)
 check("an allowed http redirect target is handed over unrequested", "return now;" in (T / "StreamUrl.java").read_text(encoding="utf-8"))
 sys.exit(1 if failed else 0)
