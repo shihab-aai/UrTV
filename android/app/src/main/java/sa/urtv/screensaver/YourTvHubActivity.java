@@ -34,7 +34,6 @@ public class YourTvHubActivity extends Activity {
     /** the windows, first to last (from the right in Arabic, from the left in English): key, name, the mark, the mark's colour */
     static final String[][] WINDOWS = {
         {"markets", "الأسواق", "ic_hub_markets", "#14705A"},
-        {"matches", "المباريات", "ic_hub_matches", "#1F5FBF"},
         {"games", "الألعاب", "ic_hub_games", "#7B3FC9"},
         {"settings", "الإعدادات", "ic_settings", "#5B6677"},
     };

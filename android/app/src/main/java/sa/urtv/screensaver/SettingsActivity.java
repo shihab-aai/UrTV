@@ -281,21 +281,6 @@ public class SettingsActivity extends Activity {
         if (prefs.prayerAdjOn()) for (int k = 0; k < PrayerAdj.COUNT; k++) adjRow(k);
         if (on(SettingsHub.PLACE)) line(Location.HELP, look.sub, 0);
 
-        header("المباريات");
-        // «المباريات»: the home app's page of the games (docs/PROPOSALS-NOV2.md §1), the days and the leagues, the followed teams first
-        row("مباريات اليوم", "الأيام والدوريات، وفرقك أولاً", R.drawable.ic_trophy, new Runnable() { public void run() { openMatches(); } });
-        row("الفرق المتابعة (" + arabicNum(prefs.teams().size()) + "/" + arabicNum(Prefs.MAX_TEAMS) + ")", teamsLabel(),
-            R.drawable.ic_trophy, new Runnable() { public void run() { manageTeams(); } });
-
-        // 4.3 «تطبيق المباريات»: «شاهد المباراة» on a game opens it (UrTV Player is told which game; another app just opens)
-        row("تطبيق المباريات", matchAppLabel(), R.drawable.ic_play, new Runnable() { public void run() { pickMatchApp(); } });
-
-        row("الدوريات كاملة", leaguesLabel(), R.drawable.ic_trophy,
-            new Runnable() { public void run() { startActivity(new Intent(SettingsActivity.this, LeaguesActivity.class)); } });   // 4.3.1 «اختر دورياتك»: one screen (the older dialogs below stay for saver.sh's sake)
-
-        row("رياضات أخرى", labels(Prefs.EVENTS, prefs.list("events"), "بدون"), R.drawable.ic_trophy,
-            new Runnable() { public void run() { pickMany("events", "رياضات أخرى", Prefs.EVENTS, "بدون اختيار = بدون"); } });
-
         header("العرض");
         noConv = true;
         row("الأرقام", Prefs.digitsLabel(prefs.digits()), R.drawable.ic_language,
@@ -426,8 +411,6 @@ public class SettingsActivity extends Activity {
         // #52: the other quick buttons of the home can be hidden too; a hidden one only leaves the row (its page opens from elsewhere: the markets and games by the phone, the Control Center by the Quick Settings key)
         row("زر الأسواق", prefs.pillHidden("markets") ? "مخفي" : "ظاهر", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setPillHidden("markets", !prefs.pillHidden("markets")); render(); } });
-        row("زر المباريات", prefs.pillHidden("matches") ? "مخفي" : "ظاهر", R.drawable.ic_eye,
-            new Runnable() { public void run() { prefs.setPillHidden("matches", !prefs.pillHidden("matches")); render(); } });
         row("زر الجوال", prefs.pillHidden("phone") ? "مخفي" : "ظاهر", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setPillHidden("phone", !prefs.pillHidden("phone")); render(); } });
         row("زر مركز التحكم", prefs.pillHidden("center") ? "مخفي  •  يفتح من زر الإعدادات السريعة في الريموت" : "ظاهر", R.drawable.ic_eye,

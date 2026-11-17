@@ -100,7 +100,7 @@ final class Prefs {
     // the size of the screensaver's clock (sent as #clocksize=; large is what it always was)
     static final String[][] CLOCK_SIZES = {{"large", "كبيرة"}, {"medium", "متوسطة"}, {"small", "صغيرة"}};
     // what the bottom-left slot shows (sent to the page as #slot=; matches is what it always showed)
-    static final String[][] SLOTS = {{"matches", "المباريات"}, {"weather", "الطقس"}, {"fasting", "الصيام"},
+    static final String[][] SLOTS = {{"weather", "الطقس"}, {"fasting", "الصيام"},
         {"countdown", "عدّ تنازلي"}, {"markets", "الأسواق"}, {"none", "بدون"}};
 
     // minutes of idle before Android starts the screensaver (the TV's own screen_off_timeout; not stored here)
@@ -262,7 +262,7 @@ final class Prefs {
     // The card beside the clock: value sent to the page (#panel=), Arabic label
     static final String[][] PANELS = {
         {"shows", "جديد المسلسلات"}, {"prayers", "مواقيت الصلاة اليوم"}, {"forecast", "طقس الأيام القادمة"}, {"hourly", "طقس الساعات القادمة"}, {"prayerrow", "الصلوات في صف"}, {"nextprayer", "الصلاة القادمة"},
-        {"matches", "مباريات فرقك القادمة"}, {"verse", "آية أو حديث اليوم"}, {"wisdom", "حكمة اليوم"},
+        {"verse", "آية أو حديث اليوم"}, {"wisdom", "حكمة اليوم"},
         {"adhkar", "أذكار الصباح والمساء"}, {"stocks", "الأسهم"}, {"tasks", "المهام"}, {"year", "السنة"},
         {"smart", "البطاقة الذكية"}, {"today", "يومك"}, {"album", "ألبوم صوري"},
         {"hallbookings", "حجوزات القاعات اليوم"},
@@ -308,7 +308,6 @@ final class Prefs {
         {"prayerrow", "الخمس صلوات في صف واحد، والجاية مضيئة"},
         {"nextprayer", "سطر واحد: الصلاة الجاية ووقتها وكم باقي لها"},
         {"hallbookings", "قاعات محجوزة اليوم وأوقاتها بتوقيت مسقط"},
-        {"matches", "مباريات الأسبوع ونتائج آخر يوم لفرقك، وكل مباراة بسطر واحد"},
         {"verse", "آية يوم، وحديث صحيح من الكتب الستة اليوم اللي بعده، ومعه مصدره"},
         {"wisdom", "مثل أو قول عربي معروف مع مصدره"},
         {"adhkar", "من الفجر للظهر أذكار الصباح، ومن العصر للمغرب أذكار المساء"},
@@ -440,7 +439,7 @@ final class Prefs {
         return CARD_STYLES[0][1];
     }
 
-    String slot() { return sp.getString("slot", "matches"); }
+    String slot() { String v = sp.getString("slot", "weather"); return "matches".equals(v) ? "weather" : v; }
     void setSlot(String v) { sp.edit().putString("slot", v).apply(); }
 
     static String slotLabel(String v) {
@@ -1076,8 +1075,8 @@ final class Prefs {
     boolean updateBell() { return sp.getBoolean("updateBell", true); }
     /** «أكمل المشاهدة» under the home screen's favourites (default on; it shows only once the home app may read the TV's Watch Next list). */
     /** «المظهر ← الواجهة»: the home's layout, classic (the default, the home as it always was) or football (docs/PROPOSALS-NOV2.md §1) */
-    static final String[] HOME_LAYOUTS = {"classic", "football"};
-    static final String[] HOME_LAYOUT_NAMES = {"العادية", "كرة القدم"};
+    static final String[] HOME_LAYOUTS = {"classic"};
+    static final String[] HOME_LAYOUT_NAMES = {"العادية"};
     String homeLayout() { String v = sp.getString("homeLayout", HOME_LAYOUTS[0]); return java.util.Arrays.asList(HOME_LAYOUTS).contains(v) ? v : HOME_LAYOUTS[0]; }
     void setHomeLayout(String v) { if (java.util.Arrays.asList(HOME_LAYOUTS).contains(v)) sp.edit().putString("homeLayout", v).apply(); }
     static String homeLayoutLabel(String v) { int i = java.util.Arrays.asList(HOME_LAYOUTS).indexOf(v); return HOME_LAYOUT_NAMES[Math.max(0, i)]; }

@@ -139,13 +139,6 @@ public class AppearanceActivity extends Activity {
                     cells.add(tile("look:" + key, new Mock(Mock.HOME, key, GlassStyle.of(key, light)), w(GlassStyle.LOOK_NAMES[i]) + (i == 0 ? " · " + w("الافتراضي") : ""), key.equals(prefs.look()), v -> { prefs.setLook(key); render(); }));
                 }
                 grid(cells, 5);
-                col.addView(text(w("الواجهة"), 16, "Regular", look.sub), line(dp(8)));
-                List<View> layouts = new ArrayList<>();
-                for (int i = 0; i < Prefs.HOME_LAYOUTS.length; i++) {
-                    final String key = Prefs.HOME_LAYOUTS[i];
-                    layouts.add(tile("layout:" + key, new Mock(Mock.HOME, prefs.look(), GlassStyle.of(prefs.look(), light)), w(Prefs.HOME_LAYOUT_NAMES[i]), key.equals(prefs.homeLayout()), v -> { prefs.setHomeLayout(key); render(); }));
-                }
-                grid(layouts, 5);
                 break;
             }
             case "accent": {

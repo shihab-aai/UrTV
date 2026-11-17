@@ -849,9 +849,6 @@ public class MainActivity extends Activity {
         Pill marketsBtn = pill(S.t("الأسواق"), R.drawable.ic_markets);
         marketsPill = marketsBtn;
         marketsBtn.setOnClickListener(v -> { if (!cleanShown) guarded(ParentalPolicy.WIDGET_MATCHES, null, S.t("الأسواق"), () -> launch(new Intent(this, MarketsActivity.class))); });   // our own page: no app of the lists
-        Pill matchesBtn = pill(S.t("المباريات"), R.drawable.ic_matches);
-        matchesPill = matchesBtn;
-        matchesBtn.setOnClickListener(v -> { if (!cleanShown) launchGuarded(ParentalPolicy.WIDGET_MATCHES, new Intent(this, MatchesActivity.class), "المباريات"); });
         // «الجوال» (C14): a round button to the phone remote's page (the QR and the pairing), after «المباريات»
         phonePill = pill(S.t("الجوال"), R.drawable.ic_phone);
         phonePill.setOnClickListener(v -> launchGuarded(ParentalPolicy.OUR_SETTINGS, new Intent(this, PhoneActivity.class), "الجوال"));
@@ -864,7 +861,6 @@ public class MainActivity extends Activity {
         if (isInstalled(SAVER_PKG) && ConfigSnapshot.read(this).tasksPillOn()) row.add(tasks);   // «زر المهام»: hidden in the screensaver's settings, it is not in the row
         if (centerWanted()) row.add(centerPill);
         row.add(marketsBtn);
-        row.add(matchesBtn);
         row.add(phonePill);
         tilawahPill = tilawah;
         pillRow = right;
@@ -3227,7 +3223,6 @@ public class MainActivity extends Activity {
         hiddenQuick.clear();
         for (String k : new String[] {"markets", "matches", "center", "phone"}) if (cfg.pillHidden(k)) hiddenQuick.add(k);
         applyQuickPill(marketsPill, !hiddenQuick.contains("markets"), matchesPill, phonePill, updatePill, tilawahPill);
-        applyQuickPill(matchesPill, !hiddenQuick.contains("matches"), phonePill, updatePill, tilawahPill);
         applyQuickPill(phonePill, !hiddenQuick.contains("phone"), updatePill, tilawahPill);
         applyQuickPill(updatePill, !Parental.state(this).kids && UpdateNotice.wanted(this), tilawahPill);
         UpdateNotice.checkIfDue(getApplicationContext(), () -> runOnUiThread(() -> applyQuickPill(updatePill, !Parental.state(this).kids && UpdateNotice.wanted(this), tilawahPill)));
