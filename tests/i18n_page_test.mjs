@@ -85,7 +85,7 @@ const ARABIC = /[؀-ۿ]/g;
   check('the city line: «Time in Riyadh»', r.sub === 'Time in Riyadh', r.sub);
   check('laid out left to right: the dates and the next prayer on the left, the weather and the games on the right',
     r.dates < r.markets && r.prayer < r.match, JSON.stringify(r));
-  check('a followed team\'s game under way, big: the English names, «Live · 67\'»', /Al-Hilal 2 - 1 Al-Nassr/.test(r.games) && /Live · 67'/.test(r.games), r.games);
+  check('the English page does not show a football match', !/Al-Hilal|Al-Nassr|Live · 67'/.test(r.games), r.games);
   check('the Arabic content keeps right to left in its card', r.quoteDir === 'rtl', r.quoteDir);
   const t = await ownText(p);
   check('no Arabic in the page\'s own words', !ARABIC.test(t), (t.match(/[^ ]*[؀-ۿ][^ ]*/g) || []).slice(0, 8).join(' | '));
@@ -97,8 +97,8 @@ const ARABIC = /[؀-ۿ]/g;
 {
   const { p, ctx, errors } = await open('tv-en.html', 'teams=133613&slot=matches');
   const g = await p.evaluate(() => document.getElementById('match-row').innerText);
-  check('a game this week: the English names, «In 1 day, 4 hours», «Tuesday 3 November · 7:17 PM»',
-    !errors.length && /Manchester City × Arsenal/.test(g) && /In 1 day, 4 hours/.test(g) && /Tuesday 3 November · 7:17 PM/.test(g), g + errors.join('; '));
+  check('a match request shows no football on the English page',
+    !errors.length && !/Manchester City|Arsenal|In 1 day, 4 hours/.test(g), g + errors.join('; '));
   await ctx.close();
 }
 

@@ -38,11 +38,10 @@ check("4.3 step 64: «مباريات اليوم وبكرة» below «فرقك»:
 check("the page sends the game only: names, competition, kick-off, channel names (no stream, no link)",
       re.search(r"return \{home_ar: .*?away_en: .*?competition_en: .*?kickoff: String\(fbKick\(ev\)\), channels: .*?\};", tpl, re.S) is not None
       and not re.search(r"mpFacts[^}]*(url|link|stream)", tpl.split("function mpFacts")[1][:900]))
-check("the setting: the screensaver's Prefs.matchApp (auto by default), its row, its provider column, saver.sh and the docs",
-      'sp.getString("matchApp", MATCH_AUTO)' in read(A / "Prefs.java") and 'row("تطبيق المباريات"' in read(A / "SettingsActivity.java")
-      and '"match_app"' in read(A / "ConfigProvider.java") and 'cur.getColumnIndex("match_app")' in read(H / "ConfigSnapshot.java")
-      and '  matchapp) set1 matchapp ' in read(ROOT / "optimize/saver.sh") and "optimize/saver.sh matchapp auto" in read(ROOT / "docs/SETTINGS.md")
-      and "optimize/saver.sh matchapp auto" in read(ROOT / "docs/FEATURES.md"))
+check("the removed football setting is absent from TV settings and the setup command",
+      'row("تطبيق المباريات"' not in read(A / "SettingsActivity.java")
+      and '  matchapp) set1 matchapp ' not in read(ROOT / "optimize/saver.sh")
+      and "optimize/saver.sh matchapp auto" not in read(ROOT / "docs/SETTINGS.md"))
 check("the launcher may see UrTV Player (Android 11+)", '<package android:name="com.urtv.player" />' in read(ROOT / "android/launcher/src/main/AndroidManifest.xml"))
 ma, mact = read(H / "MatchApp.java"), read(H / "MatchesActivity.java")
 check("the Player is started for a result from the activity, never with NEW_TASK (it knows its caller by getCallingPackage)",

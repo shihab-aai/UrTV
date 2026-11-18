@@ -76,10 +76,10 @@ first = sorted([k for k, v in C.items() if v["parent"] == "-"], key=lambda k: C[
 check("the first screen: «المدينة» first (the wide one, 4.3.1), then «الأذان» and the buttons of the prototype in its order",
       [C[k]["name"] for k in first] == ["المدينة", "الأذان", "الموقع والصلاة", "الساعة والأرقام", "تلاوة وأذان", "البطاقات", "المظهر والخلفيات", "مركز التحكم",
                                        "التحكم من الجوال", "تحديث تلفزيوني", "أرسل تقرير", "المزيد"], [C[k]["name"] for k in first])
-check("«البطاقات» holds «شاشة التوقف» and «الشاشة الرئيسية»; «المزيد» the matches and markets, the apps, the shows, «الرقابة الأبوية», «تصفية المواقع» (and «اللغة» once LANG_TILE is on)",
+check("«البطاقات» holds the two screens; «المزيد» holds markets, apps, shows, family and language",
       sorted((C[k]["index"], C[k]["name"]) for k in C if C[k]["parent"] == "cards") == [(0, "شاشة التوقف"), (1, "الشاشة الرئيسية")]
       and [C[k]["name"] for k in sorted((k for k in C if C[k]["parent"] == "more" and C[k]["index"] >= 0), key=lambda k: C[k]["index"])]
-      == ["المباريات والأسواق", "التطبيقات والمفضلة", "جديد المسلسلات", "الرقابة الأبوية", "تصفية المواقع"] + (["اللغة"] if "static final boolean LANG_TILE = true;" in hub else []),
+      == ["الأسواق", "التطبيقات والمفضلة", "جديد المسلسلات", "الرقابة الأبوية", "تصفية المواقع"] + (["اللغة"] if "static final boolean LANG_TILE = true;" in hub else []),
       {k: (v["parent"], v["index"]) for k, v in C.items()})
 check("only the first screen, «البطاقات» and «المزيد» are screens of buttons, and nothing is deeper than that",
       {k for k, v in C.items() if v["tiles"]} == {"cards", "more"} and all(C[v["parent"]]["parent"] == "-" for v in C.values() if v["parent"] != "-"))
@@ -101,7 +101,7 @@ check("each row in its place: the clock and digits in «الساعة والأر�
       all(got.get(k) == v for k, v in want.items()), {k: got.get(k) for k, v in want.items() if got.get(k) != v})
 adj = st[st.index("private void adjRow(final int k)"):].split("\n    }\n")[0]
 check("the prayers' own minute rows (adjRow) are made in «الموقع», so they go with its category («الموقع والصلاة»)",
-      "row(PrayerAdj.label(" in adj and render.index('header("الموقع")') < render.index("adjRow(k)") < render.index('header("المباريات")')
+      "row(PrayerAdj.label(" in adj and render.index('header("الموقع")') < render.index("adjRow(k)") < render.index('header("العرض")')
       and 'if (on(SettingsHub.PLACE)) line(Location.HELP' in render)
 check("a row not named goes with its header's category at run time (none is ever lost), else «شاشة التوقف»",
       row_out[-1][2] == "saver" and all(r[2] == r[1] for r in row_out[:-1]), [r for r in row_out[:-1] if r[2] != r[1]])

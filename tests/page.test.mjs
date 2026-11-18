@@ -116,8 +116,69 @@ const restart = async p => { await carry(p); await p.reload(); };
   check('screen saver: hall booking title, room and time appear',
     !saver.errors.length && saverRows === 1 && await saver.p.locator('.week .hd').textContent() === 'Hall Bookings Today' &&
     await saver.p.locator('.hall-booking .booking-title').textContent() === 'Staff meeting' &&
-    (await saver.p.locator('.hall-booking').textContent()).includes('Meeting Hall'), saver.errors.join('; '));
+    (await saver.p.locator('.hall-booking').textContent()).includes('Meeting Hall') &&
+    await saver.p.evaluate(() => !CARDS[0].bookingAnimation &&
+      getComputedStyle(document.querySelector('.booking-start')).display === 'none'), saver.errors.join('; '));
   await saver.ctx.close();
+
+  // A short card keeps the header in place while the complete list travels past its clipped window.
+  const longRows = Array.from({length:12}, (_, i) => ({ar:'قاعة ' + i, en:'Hall ' + i,
+    title:'Booking title ' + i + ' for the learning centre', start:String(i + 8).padStart(2, '0') + ':00',
+    end:String(i + 9).padStart(2, '0') + ':00'}));
+  for (const [label, hash, width, height] of [
+    ['home', 'lang=en&home_panel=hallbookings,verse&widget=1&hallbookings=1', 700, 360],
+    ['screen saver', 'lang=en&clocksize=small&panel=hallbookings&panel2=verse&hallbookings=1', 960, 540],
+  ]) {
+    const o = await open('tv-en.html', hash, {width, height, now:new Date('2026-11-15T20:30:00Z'),
+      net(r) {
+        if(r.request().url() !== feed) return false;
+        r.fulfill({headers:{'Access-Control-Allow-Origin':'*'}, json:{state:'ok', date:'2026-11-16', rows:longRows}});
+        return true;
+      },
+    });
+    await o.p.waitForFunction(() => CARDS[0].ul.querySelectorAll('.hall-booking').length === 12, null, {timeout:3000}).catch(() => {});
+    const first = await o.p.evaluate(() => {
+      if(CARDS[0].bookingAnimation){ CARDS[0].bookingAnimation.pause(); CARDS[0].bookingAnimation.currentTime = 0; }
+      const c = CARDS[0], w = c.bookingWindow.getBoundingClientRect(), row = c.ul.firstElementChild.getBoundingClientRect();
+      return {count:c.ul.querySelectorAll('.hall-booking:not([data-booking-copy])').length,
+        copies:c.ul.querySelectorAll('.hall-booking[data-booking-copy][aria-hidden="true"]').length,
+        markers:c.ul.querySelectorAll('.hall-booking .booking-start').length,
+        markerText:c.ul.querySelector('.booking-start')?.textContent,
+        markerVisible:getComputedStyle(c.ul.querySelector('.booking-start')).display !== 'none',
+        moves:!!c.bookingAnimation,
+        firstVisible:row.top >= w.top - 1 && row.bottom <= w.bottom + 1,
+        title:c.hd.textContent, cardBottom:c.el.getBoundingClientRect().bottom,
+        limit:CONFIG.widget ? innerHeight : document.querySelector('.bottom').getBoundingClientRect().top};
+    });
+    if(first.moves) await o.p.evaluate(() => {
+      const c = CARDS[0], a = c.bookingAnimation;
+      a.pause();
+      const last = [...c.ul.querySelectorAll('.hall-booking:not([data-booking-copy])')].at(-1);
+      a.currentTime = a.effect.getTiming().duration * (last.offsetTop - c.ul.firstElementChild.offsetTop) / c.bookingCycle;
+    });
+    await o.p.waitForTimeout(50);
+    const last = await o.p.evaluate(() => {
+      const c = CARDS[0], w = c.bookingWindow.getBoundingClientRect();
+      const row = [...c.ul.querySelectorAll('.hall-booking:not([data-booking-copy])')].at(-1).getBoundingClientRect();
+      return {visible:row.top >= w.top - 1 && row.top < w.bottom, title:c.hd.textContent};
+    });
+    const loop = await o.p.evaluate(() => {
+      const c = CARDS[0], a = c.bookingAnimation, duration = a.effect.getTiming().duration;
+      a.currentTime = duration - 50;
+      const before = c.ul.querySelector('[data-booking-copy]').getBoundingClientRect().top;
+      a.currentTime = duration + 50;
+      const after = c.ul.firstElementChild.getBoundingClientRect().top;
+      return {before, after, samePosition:Math.abs(before - after) < 5,
+        speed:c.bookingCycle / (duration / 1000)};
+    });
+    check(`hall bookings on ${label}: all 12 rows scroll down, then the first follows the last without reversing or moving the title`,
+      !o.errors.length && first.count === 12 && first.copies === 12 && first.markers === 2 &&
+      first.markerText === 'Start of list' && first.markerVisible && first.moves && first.firstVisible &&
+      last.visible && loop.samePosition && loop.speed >= 11 && loop.speed <= 13 &&
+      first.title === last.title && first.cardBottom <= first.limit + 1,
+      JSON.stringify({first, last, loop, errors:o.errors}));
+    await o.ctx.close();
+  }
 }
 
 // ---- both pages, three screen sizes: no errors, shown, clock right, nothing off screen, Arabic digits
@@ -156,7 +217,7 @@ const SAMPLE = {
     NEXT_LIST = { '136013': [ev('a', 'Al-Hilal', 'Al-Nassr', 3), ev('b', 'Al-Ahli', 'Al-Hilal', 80)] };
   },
 };
-const EXPECT = { prayers: [6, 'مواقيت اليوم'], forecast: [5, 'الأيام القادمة'], matches: [2, 'مباريات فرقك'],
+const EXPECT = { prayers: [6, 'مواقيت اليوم'], forecast: [5, 'الأيام القادمة'], matches: [2, null],
                  verse: [2, null], wisdom: [2, 'حكمة اليوم'], shows: [1, 'هذا الأسبوع'] };
 for (const [panel, [rows, title]] of Object.entries(EXPECT)) {
   const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=' + panel);
@@ -745,22 +806,22 @@ for (const panel of ['prayers', 'verse', 'shows']) {
 
   await p.evaluate(`MATCHES['136013'] = ${game('g1', 1.8, [2, 1], 'FT')}; renderMatches();`);
   let t = await slot();
-  check('whistle blown: final score at once, not «مباشر»', t.includes('النتيجة النهائية') && t.includes('٢ - ١') && !t.includes('مباشر'), t);
+  check('a match fragment does not show a final score', !t.includes('النتيجة النهائية') && !t.includes('٢ - ١'), t);
 
   await p.evaluate(`keepResult('136013', MATCHES['136013']); MATCHES['136013'] = ${game('g2', -72, null, 'NS')};
                     RESULTS = {}; renderMatches();`);
   t = await slot();
-  check('API moved to the next fixture: score still shown', t.includes('النتيجة النهائية') && t.includes('٢ - ١'), t);
+  check('a match update does not show a score', !t.includes('النتيجة النهائية') && !t.includes('٢ - ١'), t);
 
   await restart(p);
   await p.waitForTimeout(800);
   await p.evaluate(`MATCHES['136013'] = ${game('g2', -72, null, 'NS')}; renderMatches();`);
   t = await slot();
-  check('after a restart the same day: score still shown', t.includes('٢ - ١'), t);
+  check('after a restart the match score stays hidden', !t.includes('٢ - ١'), t);
 
   await p.evaluate(`KEPT['136013'] = [${game('g1', 27, [2, 1], 'FT')}]; renderMatches();`);
   t = await slot();
-  check('a day later: score gone, next fixture shown', !t.includes('٢ - ١') && t.includes('×'), t);
+  check('a day later match content stays hidden', !t.includes('٢ - ١') && !t.includes('×'), t);
   await ctx.close();
 }
 
@@ -780,8 +841,7 @@ for (const panel of ['prayers', 'verse', 'shows']) {
     const when = document.querySelector('#match-row .sub.when');
     return { subs: sub.map(x => x.textContent.trim()), small: when && parseFloat(getComputedStyle(when).fontSize) < parseFloat(getComputedStyle(sub[0]).fontSize) };
   });
-  check('upcoming match: «بعد ٣ أيام» then «السبت ٢٤ أكتوبر · ٩:١٦ م» in smaller text',
-    r.subs.length === 2 && r.subs[0] === 'بعد ٣ أيام' && r.subs[1] === 'السبت ٢٤ أكتوبر · ٩:١٦ م' && r.small, JSON.stringify(r));
+  check('an upcoming match has no visible details', r.subs.length === 0 && r.small === null, JSON.stringify(r));
   await ctx.close();
 }
 
@@ -1002,16 +1062,16 @@ const FAKE_NOW = iso => `(() => { const T = Date.parse('${iso}'), R = Date;
 const FORECAST_5 = `FORECAST = [0,1,2,3,4].map(i => ({date:'2026-10-2' + (2 + i), code:[0,2,3,95,1][i], hi:38 - i, lo:20}));`;
 const slotText = p => p.evaluate(() => ({ label: document.getElementById('slot-label').textContent,
   row: document.getElementById('match-row').innerText.replace(/\s+/g, ' ').trim() }));
-for (const [hash, want] of [['', 'matches'], ['slot=matches', 'matches'], ['slot=weather', 'weather'], ['slot=fasting', 'fasting'],
-                            ['slot=countdown', 'countdown'], ['slot=none', 'none'], ['slot=bogus', 'matches'], ['slot=', 'matches']]) {
+for (const [hash, want] of [['', 'weather'], ['slot=matches', 'weather'], ['slot=weather', 'weather'], ['slot=fasting', 'fasting'],
+                            ['slot=countdown', 'countdown'], ['slot=none', 'none'], ['slot=bogus', 'weather'], ['slot=', 'weather']]) {
   const { p, ctx, errors } = await open('tv.html', 'teams=136013&' + hash);
   const got = await p.evaluate(() => CONFIG.slot);
   check(`link #${hash || '(empty)'} → CONFIG.slot ${want}`, !errors.length && got === want, got + errors.join('; '));
   await ctx.close();
 }
-{   // matches stay the default; with no team followed the slot shows the weather
+{   // Football requests fall back to weather, whether or not a team was followed.
   let r = await open('tv.html', 'teams=136013');
-  check('slot matches with a team: «المباريات»', (await slotText(r.p)).label === 'المباريات');
+  check('a followed team does not enable football in the slot', (await slotText(r.p)).label !== 'المباريات');
   await r.ctx.close();
   r = await open('tv.html', 'teams=');
   await r.p.evaluate(FORECAST_5 + FAKE_NOW('2026-10-22T09:00:00Z') + '; renderSlot();');
@@ -1140,7 +1200,7 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
     await ctx.close();
   }
 }
-for (const [hash, asks] of [['teams=136013', true], ['teams=136013&slot=weather', false], ['teams=136013&slot=none', false], ['teams=', false], ['teams=136013&slot=weather&panel=matches', true]]) {
+for (const [hash, asks] of [['teams=136013', false], ['teams=136013&slot=weather', false], ['teams=136013&slot=none', false], ['teams=', false], ['teams=136013&slot=weather&panel=matches', false]]) {
   const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
   let sports = 0;
   await ctx.route(/^https?:/, r => { if (/thesportsdb/.test(r.request().url())) sports++; return r.abort(); });
@@ -1161,15 +1221,14 @@ for (const [width, height, style] of [[1920, 1080, ''], [1280, 720, ''], [960, 5
     NEXT_LIST['136013'] = names.map(([a, b], i) => ({ idEvent: 'm' + i, strHomeTeam: a, strAwayTeam: b, strStatus: 'NS',
       strTimestamp: new Date(Date.parse('2026-10-24T18:16:00Z') + i * 86400000).toISOString() }));
     renderPanel(false);
-    const card = document.querySelector('.week'), c = card.getBoundingClientRect(), lis = [...card.querySelectorAll('li')];
-    const wh = lis.map(li => (li.querySelector('.mwhen') || {}).textContent);
-    const clipped = [...card.querySelectorAll('li > span')].filter(e => e.scrollWidth > e.clientWidth + 1).length;
+    const card = document.querySelector('.week'), c = card.getBoundingClientRect();
+    const matchRows = card.querySelectorAll('.mwhen').length;
     const bar = document.querySelector('.bottom').getBoundingClientRect();
-    return { wh, rows: lis.length, clipped, within: c.bottom < bar.top - 4 && c.height < .42 * innerHeight && c.left >= 0,
-             dt: lis[0].querySelector('.dt').textContent };
+    return { matchRows, within: c.bottom < bar.top - 4 && c.height < .42 * innerHeight && c.left >= 0,
+             header: card.querySelector('.hd').textContent };
   });
-  check(`matches card at ${width}x${height}${style ? ' ' + style : ''}: date and time under each game, nothing clipped`,
-    !errors.length && r.wh[0] === 'السبت ٢٤ أكتوبر · ٩:١٦ م' && r.wh[1].startsWith('الأحد') && r.rows === 4 && !r.clipped && r.within && r.dt === 'بعد ٣ أيام', JSON.stringify(r) + errors.join('; '));
+  check(`football request at ${width}x${height}${style ? ' ' + style : ''}: the card falls back cleanly`,
+    !errors.length && r.matchRows === 0 && r.within && ['آية اليوم', 'حديث اليوم'].includes(r.header), JSON.stringify(r) + errors.join('; '));
   await ctx.close();
 }
 
@@ -1251,111 +1310,18 @@ for (const [width, height, style] of [[1920, 1080, ''], [1280, 720, ''], [960, 5
   }
 }
 
-// ---- 20 followed teams: the slot pages through all of them, two at a time, and the card pages its rows
+// ---- removed sports requests cannot draw a match or fetch sports data at any TV size.
 for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
-  const ids = Array.from({ length: 22 }, (_, i) => 900100 + i);
-  const { p, ctx, errors } = await open('tv.html', 'teams=' + ids.join(',') + '&panel=matches', { width, height });
-  const r = await p.evaluate(() => {
-    const NAMES = 'Arsenal Barcelona Chelsea Dortmund Everton Fulham Genoa Hertha Inter Juventus Lazio Milan Napoli Osasuna Porto Roma Sevilla Torino Udinese Valencia'.split(' ');
-    const ids = CONFIG.teamIds;
-    ids.forEach((id, i) => { MATCHES[id] = { idEvent: 'e' + i, idHomeTeam: String(id), strHomeTeam: NAMES[i],
-      idAwayTeam: 'x' + i, strAwayTeam: NAMES[19 - i] + ' B', strTimestamp: new Date(Date.now() + (i + 1) * 36e5).toISOString() }; });
-    MATCHES_LOADED = true;
-    const seen = new Set(), bad = [], row = document.getElementById('match-row');
-    MATCH_PAGE = -1;
-    for (let k = 0; k < 12; k++) {
-      renderMatches(true);
-      row.querySelectorAll('.mblock .big').forEach(b => seen.add(b.innerText));
-      const b = row.getBoundingClientRect();
-      if (b.left < -2 || b.right > innerWidth + 2 || b.bottom > innerHeight + 2) bad.push(k);
-    }
-    return { teams: ids.length, shown: seen.size, bad };
+  const seen = [];
+  const { p, ctx, errors } = await open('tv.html', 'teams=136013&leagues=Saudi-Arabian%20Pro%20League&events=f1,ufc,boxing&panel=matches', {
+    width, height, net: r => { if (/thesportsdb/.test(r.request().url())) seen.push(r.request().url()); return false; },
   });
-  check(`20 teams at ${width}x${height}: capped, all paged through, on screen`,
-    !errors.length && r.teams === 20 && r.shown === 20 && !r.bad.length, JSON.stringify(r) + errors.join('; '));
+  const state = await p.evaluate(() => ({ header: document.querySelector('.week .hd').textContent,
+    games: document.querySelectorAll('.mblock, .mwhen, .cr').length }));
+  check(`removed sports at ${width}x${height}: no match card, badges or network calls`,
+    !errors.length && state.games === 0 && ['آية اليوم', 'حديث اليوم'].includes(state.header) && seen.length === 0,
+    JSON.stringify(state) + seen.join(',') + errors.join('; '));
   await ctx.close();
-}
-
-// ---- other sports, with TheSportsDB answers mocked: an NBA game, an NFL game, an F1 weekend, a UFC card
-{
-  const at = h => new Date(Date.now() + h * 36e5).toISOString().slice(0, 19);
-  const game = (id, sport, h, a, hid, aid, hrs) => ({ idEvent: id, strSport: sport, idHomeTeam: hid, strHomeTeam: h,
-    idAwayTeam: aid, strAwayTeam: a, strTimestamp: at(hrs), strStatus: 'NS', intHomeScore: null, intAwayScore: null });
-  const NEXT = {
-    '900001': [game('n1', 'Basketball', 'Los Angeles Lakers', 'Golden State Warriors', '900001', '900002', 5)],
-    '900003': [game('f1', 'American Football', 'Kansas City Chiefs', 'San Francisco 49ers', '900003', '900004', 30)],
-  };
-  const F1 = [['Saudi Arabian Grand Prix Practice 1', 3], ['Saudi Arabian Grand Prix Qualifying', 27],
-              ['Saudi Arabian Grand Prix Sprint', 30], ['Saudi Arabian Grand Prix', 51]]
-    .map(([n, h], i) => ({ idEvent: 'r' + i, strEvent: n, strCountry: 'Saudi Arabia', strTimestamp: at(h), strStatus: 'NS' }));
-  // the shapes TheSportsDB really answers (CI report): UFC «UFC 333 Volkanovski vs Evloev», boxing with no time of day
-  const UFC = [{ idEvent: 'u1', strEvent: 'UFC 333 Volkanovski vs Evloev', strCountry: 'United Arab Emirates', strTime: '16:00:00',
-                 strTimestamp: at(60), strStatus: 'NS' },
-               { idEvent: 'u2', strEvent: 'UFC Fight Night 291 Buckley vs Malott', strCountry: 'Canada', strTime: '21:00:00',
-                 strTimestamp: at(200), strStatus: 'NS' }];
-  const day = new Date(Date.now() + 30 * 36e5).toISOString().slice(0, 10);
-  const BOX = [{ idEvent: 'b1', strEvent: 'Dalton Smith vs Alberto Puello', strCountry: 'United Kingdom', strTime: '00:00:00',
-                 strTimestamp: day + 'T00:00:00', dateEvent: day, strStatus: 'NS' }];
-  const mock = r => {
-    const u = new URL(r.request().url());
-    if (!/thesportsdb/.test(u.host)) return r.abort();
-    const id = u.searchParams.get('id'), body = j => r.fulfill({ json: j, headers: { 'Access-Control-Allow-Origin': '*' } });
-    if (u.pathname.endsWith('eventsnext.php')) return body({ events: NEXT[id] || null });
-    if (u.pathname.endsWith('eventsnextleague.php')) return body({ events: { E1: F1, E2: UFC, E3: BOX }[id] || null });
-    return body({ results: null });
-  };
-  for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
-    const ctx = await browser.newContext({ viewport: { width, height } });
-    await ctx.route(/^https?:/, mock);
-    const p = await ctx.newPage();
-    const errors = [];
-    p.on('pageerror', e => errors.push(e.message));
-    await p.goto(page('tv.html') + '#gap=0&teams=900001,900003&events=f1,ufc,boxing&panel=matches');
-    await p.evaluate(() => { EVENT_LEAGUES.f1 = [{ id: 'E1', name: 'Formula 1' }]; EVENT_LEAGUES.ufc = [{ id: 'E2', name: 'UFC' }];
-                             EVENT_LEAGUES.boxing = [{ id: 'E3', name: 'Boxing' }]; });
-    await p.evaluate(() => loadMatches());
-    await p.waitForTimeout(800);
-    const r = await p.evaluate(() => {
-      const row = document.getElementById('match-row'), seen = [], bad = [];
-      MATCH_PAGE = -1;
-      for (let k = 0; k < 4; k++) {
-        renderMatches(true);
-        row.querySelectorAll('.mblock').forEach(b => {
-          seen.push(b.innerText.replace(/\s+/g, ' ').trim());
-          const big = b.querySelector('.big > span');
-          const rg = document.createRange(), cs = getComputedStyle(big); rg.selectNodeContents(big);   // as fitMatches measures
-          if (rg.getBoundingClientRect().width > big.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + .5)
-            bad.push('overflow: ' + big.textContent);
-        });
-        const b = row.getBoundingClientRect();
-        if (b.left < -2 || b.right > innerWidth + 2 || b.bottom > innerHeight + 2) bad.push('off screen ' + k);
-      }
-      const card = matchRows().map(h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.replace(/\s+/g, ' ').trim(); });
-      const shown = [], cut = [];
-      for (let k = 0; k < card.length; k++) {   // every page of the card
-        CARDS[0].page = k; renderPanel(false);
-        document.querySelectorAll('#week-list li > span:first-child').forEach(sp => { shown.push(sp.textContent); if (!fits(sp)) cut.push(sp.textContent); });
-      }
-      return { seen, bad, card, cardRows: new Set(shown).size, cardCut: [...new Set(cut)] };
-    });
-    const all = r.seen.join(' | ');
-    const tag = `${width}x${height}`;
-    check(`${tag}: no script errors`, !errors.length, errors.join('; '));
-    // in the slot two games share the row, so the names may take the nickname alone; the card has room for them whole
-    check(`${tag}: NBA game in Arabic`, (all.includes('لوس أنجلوس ليكرز × غولدن ستيت ووريورز') || all.includes('ليكرز × ووريورز'))
-      && r.card.some(c => c.includes('لوس أنجلوس ليكرز × غولدن ستيت ووريورز')), all + ' / ' + r.card.join(' | '));
-    check(`${tag}: NFL game in Arabic`, (all.includes('كانساس سيتي تشيفز × سان فرانسيسكو فورتي ناينرز') || all.includes('تشيفز × فورتي ناينرز'))
-      && r.card.some(c => c.includes('كانساس سيتي تشيفز × سان فرانسيسكو فورتي ناينرز')), all + ' / ' + r.card.join(' | '));
-    check(`${tag}: F1: the Grand Prix on the big line, the next session under it`, /جائزة السعودية( الكبرى)? التجارب الحرة ١/.test(all), all);
-    check(`${tag}: UFC: the fighters on the big line, the card's number and country under it`,
-      /× [^|]* UFC ٣٣٣ · الإمارات/.test(all) && !/[A-Za-z]/.test(all.replace(/UFC/g, '')), all);
-    check(`${tag}: a boxing card with no time tells the day only`, all.includes('ملاكمة') && !/ملاكمة[^|]*[٠-٩]+:[٠-٩]+/.test(all), all);
-    check(`${tag}: nothing off screen, every name whole on one line (no «…»)`, !r.bad.length && !all.includes('…'), r.bad.join(',') + ' ' + all);
-    check(`${tag}: the card beside the clock: every row on one line, long names in their short form`, r.cardRows > 0 && !r.cardCut.length, JSON.stringify(r.cardCut));
-    check(`${tag}: the card lists the F1 weekend (practice, qualifying, sprint, race)`,
-      ['التجارب الحرة ١', 'التأهل', 'السبرنت', 'السباق'].every(x => r.card.some(c => c.includes('جائزة السعودية الكبرى · ' + x))), r.card.join(' | '));
-    await ctx.close();
-  }
 }
 
 // ---- from 10 to 12 o'clock the clock has four digits: in the TV's own font (ours not loaded: offline, or blocked) it is
@@ -1432,215 +1398,15 @@ const SHORT_GAMES = [['Al-Hilal', 'Al-Nassr', true, true], ['Al-Ahli', 'Al-Ittih
 const LONG_GAMES = [['Manchester United', 'Borussia Monchengladbach', true, true], ['Paris Saint-Germain', 'Bayern Munich', true, true],
                     ['Real Madrid', 'Manchester City', true, true]];
 for (const [width, height] of [[461, 250], [1920, 1080], [1280, 720], [960, 540]]) {
-  const tag = `launcher matches card ${width}x${height}`;
   const seen = [];
   const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&widget=1', { width, height, net: crestNet(seen) });
   await p.evaluate(CREST_GAMES(SHORT_GAMES) + ' renderPanel(false);');
-  const before = await p.evaluate(() => document.querySelectorAll('#week-list img.cr').length);
-  await p.evaluate(() => loadCrests());
-  await p.waitForTimeout(200);
-  const r = await p.evaluate(() => {
-    const imgs = [...document.querySelectorAll('#week-list img.cr')];
-    const rows = [...document.querySelectorAll('#week-list li > span:first-child')];
-    return { n: imgs.length, shown: imgs.every(i => i.src.startsWith('data:image/png') && i.naturalWidth > 0 && i.naturalWidth <= 48 && i.getBoundingClientRect().width > 8),
-      stored: Object.keys(JSON.parse(localStorage.getItem('crests') || '{}')).sort().join(),
-      bytes: (localStorage.getItem('crests') || '').length,
-      names: rows.map(sp => sp.querySelectorAll('.tm').length),
-      noCrestHasName: rows[1].querySelectorAll('.tm')[1].querySelector('img') === null && rows[1].querySelectorAll('.tm')[1].textContent.trim().length > 2,
-      oneLine: rows.every(sp => { const t = [...sp.querySelectorAll('.tm')].map(x => x.getClientRects().length === 1 && Math.round(x.getBoundingClientRect().top));
-                                  return t.every(Boolean) && Math.abs(t[0] - t[1]) < 6 && fits(sp); }),
-      cut: document.getElementById('week-list').textContent.includes('…') };
-  });
-  const asked = seen.length;
-  await p.evaluate(() => loadCrests());
-  await p.waitForTimeout(100);
-  check(`${tag}: no script errors`, !errors.length, errors.join('; '));
-  check(`${tag}: crests appear after they are fetched, small, and a club without one shows its name alone`,
-    before === 0 && r.n === 3 && r.shown && r.stored === '100,101,102' && r.noCrestHasName, JSON.stringify({ before, ...r }));
-  check(`${tag}: kept small in memory (${r.bytes} bytes for 3)`, r.bytes < 3 * 6000, String(r.bytes));
-  check(`${tag}: each game on one line, nothing cut`, r.oneLine && !r.cut, JSON.stringify(r));
-  check(`${tag}: one request per crest, none for the same crest again`, asked === 3 && seen.length === 3, JSON.stringify(seen));
-  // a restart: the rows and crests come back from the saved copy with no request
-  await p.evaluate(() => saveSnap());
-  await restart(p);
-  await p.waitForTimeout(500);
-  const back = await p.evaluate(() => [...document.querySelectorAll('#week-list img.cr')].filter(i => i.src.startsWith('data:image/png')).length);
-  check(`${tag}: after a restart the crests are back at once, from the saved copy`, back === 3 && seen.length === 3, back + ' ' + seen.length);
-  await ctx.close();
-}
-{   // the screensaver uses the same available crests, and keeps the name if one is missing
-  const seen = [];
-  const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches', { net: crestNet(seen) });
-  await p.evaluate(CREST_GAMES(SHORT_GAMES) + ' renderPanel(false);');
-  await p.evaluate(() => loadCrests());
-  await p.waitForTimeout(200);
-  const r = await p.evaluate(() => {
-    const imgs = [...document.querySelectorAll('#week-list img.cr')];
-    const rows = [...document.querySelectorAll('#week-list li > span:first-child')];
-    const guestWithoutBadge = rows[1].querySelectorAll('.tm')[1];
-    return { count: imgs.length, loaded: imgs.every(i => i.src.startsWith('data:image/png') && i.naturalWidth > 0 && i.naturalWidth <= 48),
-      missingName: guestWithoutBadge.querySelector('img') === null && guestWithoutBadge.textContent.trim().length > 2 };
-  });
-  check('the screensaver shows available crests and keeps the name without a badge', !errors.length && seen.length === 3
-    && r.count === 3 && r.loaded && r.missingName, JSON.stringify({ requests: seen.length, ...r }));
-  await ctx.close();
-}
-{   // a club with no crest beside clubs that have one keeps a crest-wide empty space, so the rows line up; a card with no crest at all is as it was
-  const NO_CRESTS = [['Al-Hilal', 'Al-Nassr', false, false], ['Al-Ahli', 'Al-Ittihad', false, false]];
-  for (const [label, query, width, height] of [['screensaver', 'teams=136013&panel=matches', 1280, 720], ['launcher card', 'teams=136013&panel=matches&widget=1', 1280, 720],
-                                              ['launcher card 960x540', 'teams=136013&panel=matches&widget=1', 960, 540]]) {
-    const { p, ctx, errors } = await open('tv.html', query, { width, height, net: crestNet([]) });
-    await p.evaluate(CREST_GAMES(SHORT_GAMES) + ' renderPanel(false); loadCrests();');
-    await p.waitForTimeout(250);
-    const r = await p.evaluate(() => {
-      const gaps = [...document.querySelectorAll('#week-list .crgap')], cr = document.querySelector('#week-list img.cr');
-      const g = gaps[0], tm = g && g.closest('.tm'), nm = tm && tm.querySelector('.nm');
-      return { gaps: gaps.length, imgs: document.querySelectorAll('#week-list img.cr').length,
-        same: !!g && !!cr && Math.abs(g.getBoundingClientRect().width - cr.getBoundingClientRect().width) < 1.5 && g.getBoundingClientRect().width > 8,
-        beforeName: !!g && g.nextElementSibling === nm };
-    });
-    check(`${label}: a club with no crest among clubs that have one gets a crest-wide empty space before its name, and no picture`,
-      !errors.length && r.gaps === 1 && r.imgs === 3 && r.same && r.beforeName, JSON.stringify(r));
-    await ctx.close();
-    const none = await open('tv.html', query, { width, height, net: crestNet([]) });
-    await none.p.evaluate(CREST_GAMES(NO_CRESTS) + ' renderPanel(false); loadCrests();');
-    await none.p.waitForTimeout(150);
-    const z = await none.p.evaluate(() => ({ gaps: document.querySelectorAll('#week-list .crgap').length, imgs: document.querySelectorAll('#week-list img.cr').length,
-      html: document.getElementById('week-list').innerHTML.includes('crgap') }));
-    check(`${label}: a card with no crest at all has no empty space (as before)`, !none.errors.length && z.gaps === 0 && z.imgs === 0 && !z.html, JSON.stringify(z));
-    await none.ctx.close();
-  }
-}
-const LONGER_GAMES = [['Manchester United', 'Borussia Monchengladbach', true, true], ['Al-Hilal', 'Al-Nassr', true, true]];   // one long row, one that always fits
-{   // fitting a game row: crests go first (that row only) and the full names stay; short names only when even that does not fit
-  for (const [width, height] of [[1920, 1080], [960, 540], [461, 250]]) {
-    const tag = `launcher matches card ${width}x${height}`;
-    const read = async games => {
-      const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&widget=1', { width, height, net: crestNet([]) });
-      await p.evaluate(CREST_GAMES(games) + ' renderPanel(false); loadCrests();');
-      await p.waitForTimeout(300);
-      const rows = await p.evaluate(() => [...document.querySelectorAll('#week-list li.mg > .mr')].map(row => {
-        const nms = [...row.querySelectorAll('.nm')], vis = e => getComputedStyle(e).display !== 'none';
-        return { nocr: row.classList.contains('nocr'), crests: [...row.querySelectorAll('img.cr')].filter(vis).length,
-          gaps: [...row.querySelectorAll('.crgap')].filter(vis).length,
-          shortened: nms.some(n => n.dataset.full !== undefined && n.textContent !== n.dataset.full), fits: fits(row) };
-      }));
-      await ctx.close();
-      return { rows, errors };
-    };
-    const long = await read(LONGER_GAMES), short = await read(SHORT_GAMES);
-    const order = long.rows.every(r => !(r.shortened && !r.nocr) && !(r.nocr && (r.crests || r.gaps)) && r.fits);
-    check(`${tag}: a row that does not fit with its crests loses them (the row beside it keeps its own) and keeps the full names; a name is shortened only after that (no crest or gap left on such a row)`,
-      !long.errors.length && long.rows.length === 2 && order && long.rows[1].crests >= 1 && !long.rows[1].nocr, JSON.stringify(long.rows));
-    check(`${tag}: a row that fits with its crests keeps them, with the full names`,
-      !short.errors.length && short.rows.length === 2 && short.rows.every(r => !r.nocr && !r.shortened && r.crests >= 1 && r.fits), JSON.stringify(short.rows));
-    console.log(`  (${tag}: long and short row: ${long.rows.map(r => r.nocr ? (r.shortened ? 'no crests, short names' : 'no crests, full names') : 'with crests').join(' | ')})`);
-  }
-}
-for (const [width, height] of [[461, 250], [1920, 1080], [1280, 720], [960, 540]]) {
-  for (const digits of ['hindi', 'latin']) {
-    const tag = `launcher matches card ${width}x${height} ${digits}`;
-    const seen = [];
-    const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&widget=1&digits=' + digits, { width, height, net: crestNet(seen) });
-    await p.evaluate(CREST_GAMES(LONG_GAMES) + ' renderPanel(false); loadCrests();');
-    await p.waitForTimeout(300);
-    const r = await p.evaluate(() => {
-      const rows = [...document.querySelectorAll('#week-list li > span:first-child')], text = document.getElementById('week-list').innerText;
-      return { n: rows.length, imgs: document.querySelectorAll('#week-list img.cr').length, text: text.replace(/\s+/g, ' '),
-        oneLine: rows.every(sp => [...sp.querySelectorAll('.tm')].every(x => x.getClientRects().length === 1) && fits(sp)),
-        ar: /[٠-٩]/.test(text), latin: /[0-9]/.test(text) };
-    });
-    check(`${tag}: long names with crests, each game on one line, never «…»`, !errors.length && r.n >= 2 && r.oneLine && !r.text.includes('…'), JSON.stringify(r) + errors.join('; '));
-    check(`${tag}: digits in ${digits}`, digits === 'latin' ? r.latin && !r.ar : r.ar && !r.latin, r.text);
-    await ctx.close();
-  }
-}
-
-// ---- the same crests where the badge host sends no Access-Control-Allow-Origin (the launcher's WebView page is a file:// document):
-// fetch() cannot read the picture, so the plain <img> shows it from its address, and only the address is kept
-const crestNetNoCors = seen => r => {
-  const u = r.request().url();
-  if (!/thesportsdb\.com\/images\//.test(u)) return false;
-  seen.push(u + (r.request().resourceType() === 'image' ? ' [img]' : ' [fetch]'));
-  // no CORS header: an <img> shows it, a fetch() from the file:// page is refused (Playwright adds the header to a fulfilled answer, so refuse here)
-  if (r.request().resourceType() !== 'image') r.abort('failed');
-  else r.fulfill({ contentType: 'image/png', body: badgePng });
-  return true;
-};
-const crestNetNotAPicture = seen => r => {
-  const u = r.request().url();
-  if (!/thesportsdb\.com\/images\//.test(u)) return false;
-  seen.push(u);
-  r.fulfill({ contentType: 'text/html', headers: { 'Access-Control-Allow-Origin': '*' }, body: '<html>not a badge</html>' });
-  return true;
-};
-for (const [width, height] of [[461, 250], [1920, 1080], [960, 540]]) {
-  const tag = `launcher matches card ${width}x${height}, badge host without CORS`;
-  const seen = [];
-  const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&widget=1', { width, height, net: crestNetNoCors(seen) });
-  await p.evaluate(CREST_GAMES(SHORT_GAMES) + ' renderPanel(false);');
-  await p.evaluate(() => loadCrests());
-  await p.waitForTimeout(600);
-  const r = await p.evaluate(() => {
-    const imgs = [...document.querySelectorAll('#week-list img.cr')], rows = [...document.querySelectorAll('#week-list li > span:first-child')];
-    const kept = JSON.parse(localStorage.getItem('crests') || '{}');
-    return { n: imgs.length, plain: imgs.every(i => /^https:\/\/r2\.thesportsdb\.com\/images\/media\/team\/badge\/club10[0-9]\.png$/.test(i.getAttribute('src'))
-        && i.getAttribute('width') === '48' && i.getAttribute('height') === '48' && i.getAttribute('loading') === 'lazy'),
-      loaded: imgs.every(i => i.complete && i.naturalWidth > 0 && i.getBoundingClientRect().width > 8),
-      kept: Object.keys(kept).sort().join(), onlyUrls: Object.values(kept).every(e => e.u && !e.d), bytes: (localStorage.getItem('crests') || '').length,
-      noCrestHasName: rows[1].querySelectorAll('.tm')[1].querySelector('img') === null && rows[1].querySelectorAll('.tm')[1].textContent.trim().length > 2,
-      oneLine: rows.every(sp => fits(sp) && [...sp.querySelectorAll('.tm')].every(x => x.getClientRects().length === 1)),
-      cut: document.getElementById('week-list').textContent.includes('…') };
-  });
-  check(`${tag}: no script errors`, !errors.length, errors.join('; '));
-  check(`${tag}: the crests still show, as plain 48 px images from the badge address`, r.n === 3 && r.plain && r.loaded && r.noCrestHasName, JSON.stringify(r));
-  check(`${tag}: only the address is kept (no picture), ${r.bytes} bytes for 3`, r.kept === '100,101,102' && r.onlyUrls && r.bytes < 600, JSON.stringify(r));
-  check(`${tag}: each game on one line, nothing cut`, r.oneLine && !r.cut, JSON.stringify(r));
-  const first = seen.length;
-  await p.evaluate(() => loadCrests()); await p.waitForTimeout(300);
-  check(`${tag}: the same crests asked for again: no new request`, first >= 3 && seen.length === first && seen.filter(u => u.endsWith('[img]')).length === 3, JSON.stringify(seen));
-  const before = seen.length;
-  await p.evaluate(() => saveSnap());
-  await restart(p);
-  await p.waitForTimeout(600);
-  const back = await p.evaluate(() => [...document.querySelectorAll('#week-list img.cr')].filter(i => i.getAttribute('src').startsWith('https://') && i.complete && i.naturalWidth > 0).length);
-  check(`${tag}: after a restart the crests are back, and the fetch is not tried again`, back === 3 && seen.slice(before).every(u => u.endsWith('[img]')), back + ' ' + seen.slice(before).join());
-  // SHOT item3-nocors-${width} | 0
-  await ctx.close();
-}
-for (const [width, height] of [[461, 250], [1920, 1080], [960, 540]]) {   // long names beside plain images: still one line, never «…»
-  const tag = `launcher matches card ${width}x${height}, long names, badge host without CORS`;
-  const seen = [];
-  const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&widget=1', { width, height, net: crestNetNoCors(seen) });
-  await p.evaluate(CREST_GAMES(LONG_GAMES) + ' renderPanel(false); loadCrests();');
-  await p.waitForTimeout(600);
-  const r = await p.evaluate(() => {
-    const rows = [...document.querySelectorAll('#week-list li > span:first-child')];
-    return { n: rows.length, imgs: document.querySelectorAll('#week-list img.cr').length, text: document.getElementById('week-list').innerText.replace(/\s+/g, ' '),
-      oneLine: rows.every(sp => [...sp.querySelectorAll('.tm')].every(x => x.getClientRects().length === 1) && fits(sp)) };
-  });
-  check(`${tag}: each game on one line, never «…»`, !errors.length && r.n >= 2 && r.oneLine && !r.text.includes('…'), JSON.stringify(r) + errors.join('; '));
-  await ctx.close();
-}
-{   // the answer is not a picture: nothing broken stays on the card, only the address is kept, the name shows
-  const seen = [];
-  const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&widget=1', { net: crestNetNotAPicture(seen) });
-  await p.evaluate(CREST_GAMES(SHORT_GAMES) + ' renderPanel(false); loadCrests();');
-  await p.waitForTimeout(600);
-  const r = await p.evaluate(() => ({ imgs: document.querySelectorAll('#week-list img.cr').length, kept: Object.values(JSON.parse(localStorage.getItem('crests') || '{}')).every(e => e.u && !e.d),
-    names: document.getElementById('week-list').textContent.includes('الهلال') || document.getElementById('week-list').textContent.includes('Al-Hilal') }));
-  check('a badge that is not a picture: no script errors, no broken image left on the card, the names show', !errors.length && r.imgs === 0 && r.names, JSON.stringify(r) + errors.join('; '));
-  check('a badge that is not a picture: only its address is kept', r.kept, JSON.stringify(r));
-  await ctx.close();
-}
-{   // with the header: the shrunk copy, as before (one run, the launcher's size)
-  const seen = [];
-  const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&widget=1', { net: crestNet(seen) });
-  await p.evaluate(CREST_GAMES(SHORT_GAMES) + ' renderPanel(false); loadCrests();');
-  await p.waitForTimeout(600);
-  const r = await p.evaluate(() => ({ srcs: [...document.querySelectorAll('#week-list img.cr')].map(i => i.src.slice(0, 15)),
-    kept: Object.values(JSON.parse(localStorage.getItem('crests') || '{}')).every(e => e.u && e.d && e.d.startsWith('data:image/png')) }));
-  check('a badge host with CORS: the shrunk copy (data: URI) is shown and kept, as before', !errors.length && r.srcs.length === 3 && r.srcs.every(s => s === 'data:image/png;') && r.kept, JSON.stringify(r));
+  const r = await p.evaluate(() => ({ crests: document.querySelectorAll('#week-list img.cr').length,
+    matchRows: document.querySelectorAll('#week-list .mwhen').length,
+    header: document.querySelector('.week .hd').textContent }));
+  check(`removed football at ${width}x${height}: no crests or match rows`,
+    !errors.length && r.crests === 0 && r.matchRows === 0 && seen.length === 0 && ['آية اليوم', 'حديث اليوم'].includes(r.header),
+    JSON.stringify(r) + seen.join(',') + errors.join('; '));
   await ctx.close();
 }
 
@@ -2053,304 +1819,18 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
   await ctx.close();
 }
 
-// ---- a whole league (#leagues=): a round of 9 games from the CI file, with TheSportsDB mocked. One request for the league's
-// file, none per club; the followed club's own game is shown once; every game on one line, all paged through, on screen.
-{
-  const clubs = JSON.parse(readFileSync(path.join(ROOT, 'assets/shared/teams.json'), 'utf8'));
-  const proLeague = clubs.filter(c => c.leagues.includes('Saudi-Arabian Pro League') && !c.leagues.includes('Saudi First Division League'));
-  const longest = clubs.filter(c => c.sport === 'Soccer').sort((a, b) => b.ar.length - a.ar.length).slice(0, 4);
-  const side = [...proLeague.slice(0, 14), ...longest];   // 18 sides: the 4 longest names make games 3 and 6 the worst case
-  // a fixed moment, so the day names in the rows never depend on the day the test runs: a Monday, and the last game (50 h on) is a
-  // Wednesday 8:12, the longest weekday with wide digits, «بعد يومين»
-  const LEAGUE_NOW = new Date('2026-10-26T03:12:00Z');
-  const at = h => new Date(LEAGUE_NOW.getTime() + h * 36e5).toISOString().slice(0, 19) + 'Z';
-  // game 0 is the followed club's (Al-Hilal, 136013, kicks off in 3 h); 1 is under way; 2 finished 3 h ago; the rest to come
-  const hrs = [3, -1, -3.2, 5, 9, 26, 28, 30, 50];
-  const hilal = clubs.find(c => c.id === '136013');
-  const rest = side.filter(c => c.id !== '136013');
-  const ROUND = hrs.map((h, i) => {
-    const home = i === 0 ? hilal : rest[2 * i - 1 < 0 ? 0 : (2 * i - 1) % rest.length], away = rest[(2 * i) % rest.length];
-    return { idEvent: 'L' + i, idLeague: '4668', strSport: 'Soccer', strSeason: '2026-2027', idHomeTeam: home.id, strHomeTeam: home.en,
-             idAwayTeam: away.id, strAwayTeam: away.en, strTimestamp: at(h),
-             strStatus: i === 1 ? '1H' : i === 2 ? 'FT' : 'NS', intHomeScore: i === 1 ? '1' : i === 2 ? '2' : null,
-             intAwayScore: i === 1 ? '0' : i === 2 ? '1' : null, strProgress: i === 1 ? '58' : null };
-  });
-  const FILE = { league: 'Saudi-Arabian Pro League', id: '4668', updated: new Date(LEAGUE_NOW.getTime() - 36e5).toISOString(), events: ROUND };
-  const seen = [];
-  const mock = r => {
-    const u = new URL(r.request().url()), hdr = { 'Access-Control-Allow-Origin': '*' };
-    seen.push(u.host + u.pathname + u.search);
-    if (u.host === 'raw.githubusercontent.com' && u.pathname.endsWith('/data-leagues/leagues/saudi-arabian-pro-league.json'))
-      return r.fulfill({ json: FILE, headers: hdr });
-    if (!/thesportsdb/.test(u.host)) return r.abort();
-    if (u.pathname.endsWith('eventsnext.php')) return r.fulfill({ json: { events: [ROUND[0]] }, headers: hdr });
-    if (u.pathname.endsWith('lookupevent.php'))   // the game under way has moved on: 2 - 0
-      return r.fulfill({ json: { events: [{ ...ROUND[1], intHomeScore: '2', intAwayScore: '0', strProgress: '61' }] }, headers: hdr });
-    return r.fulfill({ json: { results: null }, headers: hdr });
-  };
-  for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
-    const ctx = await browser.newContext({ viewport: { width, height } });
-    await ctx.route(/^https?:/, mock);
-    const p = await ctx.newPage();
-    const errors = [];
-    p.on('pageerror', e => errors.push(e.message));
-    seen.length = 0;
-    await p.clock.setFixedTime(LEAGUE_NOW);
-    await p.goto(page('tv.html') + '#gap=0&teams=136013&leagues=' + encodeURIComponent('Saudi-Arabian Pro League') + '&panel=matches');
-    await Promise.all([p.waitForTimeout(1200), p.waitForFunction(() => typeof MATCHES_LOADED !== 'undefined' && MATCHES_LOADED === true, null, { timeout: 15000 }).catch(() => {})]);   // at least the 1200 ms as before, and until the loader has answered (a slow 960x540 run counted the requests before the last one was made)
-    const tag = `league round at ${width}x${height}`;
-    const asked = seen.filter(u => /thesportsdb|data-leagues/.test(u));
-    check(`${tag}: one request for the league's file, two for the one followed club, nothing per club of the league`,
-      asked.filter(u => /data-leagues/.test(u)).length === 1 && asked.filter(u => /eventsnext\.php|eventslast\.php/.test(u)).length === 2
-      && !asked.some(u => /eventsnextleague|eventspastleague|eventsday|eventsseason|eventsround/.test(u)), asked.join('\n'));
-    const r = await p.evaluate(() => {
-      const row = document.getElementById('match-row'), blocks = [], bad = [];
-      MATCH_PAGE = -1;
-      for (let k = 0; k < 14; k++) {   // a pair too wide for one row is learnt on the way and shown apart: pages may grow to 8
-        renderMatches(true);
-        row.querySelectorAll('.mblock').forEach(b => {
-          blocks.push(b.querySelector('.big').innerText.replace(/\s+/g, ' ').trim());
-          const big = b.querySelector('.big > span');
-          if (!fits(big)) bad.push('cut: ' + big.textContent);
-          if (big.getClientRects().length !== 1 || big.scrollWidth > big.clientWidth + 1) bad.push('wraps: ' + big.textContent);
-          const bb = b.getBoundingClientRect();
-          if (bb.left < -2 || bb.right > innerWidth + 2 || bb.bottom > innerHeight + 2) bad.push('off screen: ' + big.textContent);
-        });
-      }
-      const card = [], cut = [];
-      const rows = matchRows().length;
-      for (let k = 0; k * MATCH_ROWS < rows; k++) {   // every page of the card
-        CARDS[0].page = k; renderPanel(false);
-        document.querySelectorAll('#week-list li > span:first-child').forEach(sp => { card.push(sp.textContent.replace(/\s+/g, ' ').trim()); if (!fits(sp)) cut.push(sp.textContent); });
-      }
-      const turn = CONFIG.leagues.length && MATCH_PAGES > 3 ? CONFIG.matchPageFastMs : CONFIG.matchPageMs;
-      return { blocks: [...new Set(blocks)], bad, pages: MATCH_PAGES, card: [...new Set(card)], cut, rows, turn, title: document.getElementById('week-hd').textContent };
-    });
-    check(`${tag}: no script errors`, !errors.length, errors.join('; '));
-    check(`${tag}: all 9 games shown across ${r.pages} pages, the followed club's game once (a pair too wide for one row goes apart)`,
-      r.blocks.length === 9 && r.pages >= 5 && r.pages <= 8, JSON.stringify(r.blocks));
-    check(`${tag}: each game on one line, nothing cut with «…», nothing off screen`,
-      !r.bad.length && !r.blocks.join('').includes('…'), r.bad.join(' | '));
-    // the fixtures' load asks for the live game at once, so the first render already carries the looked-up score (2 - 0), not the file's (1 - 0)
-    const first = asked.filter(u => /lookupevent/.test(u));
-    check(`${tag}: right after the fixtures load exactly one lookup is made, for the one game under way`,
-      first.length === 1 && /id=L1/.test(first[0]), first.join(','));
-    check(`${tag}: the live game shows the looked-up score, the finished game its score`,
-      r.blocks.some(b => b.includes('٢ - ٠')) && !r.blocks.some(b => b.includes('١ - ٠')) && r.blocks.some(b => b.includes('٢ - ١')), r.blocks.join(' | '));
-    check(`${tag}: the card lists the same 9 games, one line each, titled «المباريات»`,
-      r.rows === 9 && r.card.length === 9 && !r.cut.length && r.title === 'المباريات', JSON.stringify({ rows: r.rows, cut: r.cut, t: r.title }));
-    check(`${tag}: games in time order (result, live, then the followed club's, then the rest)`,
-      r.card.length === 9 && r.card[0].includes('٢ - ١') && r.card[1].includes('٢ - ٠') && r.card[2].startsWith('الهلال'), r.card.join(' | '));
-    check(`${tag}: ${r.pages} pages turn every ${r.turn / 1000} s (the round passes in ${r.pages * r.turn / 1000} s, under a minute and a half)`,
-      r.turn === 10000 && r.pages * r.turn <= 90000, r.turn);
-    // a game under way is refreshed on its own: one lookup, the followed club's game (3 h away) is not asked
-    seen.length = 0;
-    await p.evaluate(() => loadLive());
-    await p.waitForTimeout(400);
-    const looked = seen.filter(u => /lookupevent/.test(u));
-    const live = await p.evaluate(() => { MATCH_PAGE = -1; const out = [];
-      for (let k = 0; k < MATCH_PAGES; k++){ renderMatches(true); document.querySelectorAll('#match-row .mblock .big').forEach(b => out.push(b.innerText)); }
-      return out.join(' | '); });
-    check(`${tag}: live: one lookup for the one game under way, its new score shown`,
-      looked.length === 1 && /id=L1/.test(looked[0]) && live.includes('٢ - ٠'), looked.join(',') + ' / ' + live);
-    await ctx.close();
-  }
-}
-
-// ---- the real league file at the TV's time (Friday 2026-10-23 13:00 in Riyadh): every game once across the pages of the card
-// and of the bottom slot, no page repeating part of another, and after the last page the first again
-const TV_NOW = new Date('2026-10-23T10:00:00Z');
-const SAUDI_FILE = JSON.parse(readFileSync(path.join(ROOT, 'tests/fixtures/saudi-pro-league.json'), 'utf8'));
-const tvMock = (extra = () => false) => r => {
-  const u = new URL(r.request().url()), hdr = { 'Access-Control-Allow-Origin': '*' }, id = u.searchParams.get('id');
-  const at = h => new Date(TV_NOW.getTime() + h * 36e5).toISOString().slice(0, 19);
-  if (extra(r, u)) return true;
-  if (u.host === 'raw.githubusercontent.com' && u.pathname.endsWith('/data-leagues/leagues/saudi-arabian-pro-league.json'))
-    { r.fulfill({ json: SAUDI_FILE, headers: hdr }); return true; }
-  if (!/thesportsdb/.test(u.host)) return false;
-  const F1 = [['Saudi Arabian Grand Prix Practice 1', 30]]
-    .map(([n, h], i) => ({ idEvent: 'r' + i, strEvent: n, strCountry: 'Saudi Arabia', strTimestamp: at(h), strStatus: 'NS' }));
-  const UFC = [{ idEvent: 'u1', strEvent: 'UFC 333 Volkanovski vs Evloev', strCountry: 'United Arab Emirates', strTime: '16:00:00', strTimestamp: at(60), strStatus: 'NS' }];
-  const BOX = [{ idEvent: 'b1', strEvent: 'Dalton Smith vs Alberto Puello', strCountry: 'United Kingdom', strTime: '00:00:00',
-                strTimestamp: at(40).slice(0, 10) + 'T00:00:00', dateEvent: at(40).slice(0, 10), strStatus: 'NS' }];
-  const body = j => { r.fulfill({ json: j, headers: hdr }); return true; };
-  if (u.pathname.endsWith('eventsnext.php')) return body({ events: id === '136013' ? [SAUDI_FILE.events.find(e => e.idEvent === '2573394')] : null });
-  if (u.pathname.endsWith('eventsnextleague.php')) return body({ events: { E1: F1, E2: UFC, E3: BOX }[id] || null });
-  return body({ results: null });
-};
+// ---- A removed league selection cannot fetch fixtures or show a match at any size.
 for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
-  const { p, ctx, errors } = await open('tv.html', 'teams=136013&leagues=' + encodeURIComponent('Saudi-Arabian Pro League') + '&events=f1,ufc,boxing&panel=matches',
-    { width, height, now: TV_NOW, net: tvMock() });
-  await p.evaluate(() => { EVENT_LEAGUES.f1 = [{ id: 'E1', name: 'Formula 1' }]; EVENT_LEAGUES.ufc = [{ id: 'E2', name: 'UFC' }];
-                           EVENT_LEAGUES.boxing = [{ id: 'E3', name: 'Boxing' }]; });
-  await p.evaluate(() => loadMatches());
-  await p.waitForTimeout(800);
-  const r = await p.evaluate(() => {
-    const txt = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.replace(/\s+/g, ' ').trim(); };
-    const all = matchRows().map(txt), card = CARDS[0], lap = [], pageRows = [];
-    const read = () => [...document.querySelectorAll('#week-list li')].map(li => li.textContent.replace(/\s+/g, ' ').trim());
-    // the card turns the way its timer does (page++), three laps of it
-    const pages = Math.ceil(all.length / MATCH_ROWS);
-    card.page = 0; renderCard(card, false);
-    for (let k = 0; k < pages * 3 + 1; k++) { pageRows.push(read()); card.page++; renderCard(card, false); }
-    // the bottom slot: a lap to learn the pairs that do not fit side by side, then three laps
-    const row = document.getElementById('match-row'), slotPages = [];
-    for (let k = 0; k < 40; k++) renderMatches(true);
-    MATCH_PAGE = -1;
-    renderMatches(true);
-    const n = MATCH_PAGES;
-    for (let k = 0; k < n * 3; k++) {
-      slotPages.push([...row.querySelectorAll('.mblock .big')].map(b => b.innerText.replace(/\s+/g, ' ').trim()));
-      renderMatches(true);
-    }
-    return { all, pages, pageRows, n, slotPages };
-  });
-  const tag = `league file at the TV's time, ${width}x${height}`;
-  const lap1 = r.pageRows.slice(0, r.pages), flat = lap1.flat(), strip = s => s.replace(/\s+/g, '');
-  check(`${tag}: no script errors`, !errors.length, errors.join('; '));
-  check(`${tag}: the card has ${r.all.length} rows in ${r.pages} fixed pages`, r.all.length % 4 !== 0 && r.all.length >= 12 && r.pages === Math.ceil(r.all.length / 4), r.all.length);
-  check(`${tag}: the card shows every game exactly once over its pages, in order, no page repeating part of another`,
-    flat.length === r.all.length && flat.every((t, i) => strip(t) === strip(r.all[i])), JSON.stringify({ flat, all: r.all }));
-  check(`${tag}: after the last page of the card the first again, three laps alike`,
-    r.pageRows.every((pg, i) => JSON.stringify(pg) === JSON.stringify(r.pageRows[i % r.pages])), r.pageRows.map(x => x.length).join());
-  const slotLap = r.slotPages.slice(0, r.n), slotFlat = slotLap.flat();
-  check(`${tag}: the bottom slot shows every game once per lap of ${r.n} pages`, new Set(slotFlat).size === slotFlat.length && slotFlat.length >= 10, slotFlat.join(' | '));
-  check(`${tag}: the bottom slot's laps are alike`, r.slotPages.every((pg, i) => JSON.stringify(pg) === JSON.stringify(r.slotPages[i % r.n])), JSON.stringify(r.slotPages));
-  // SHOT item1-card-last-${width} | CARDS[0].page = 3; renderCard(CARDS[0], false);
-  await ctx.close();
-}
-
-// ---- a game past its end that the file still calls «NS» (the CI file is 6 h old, the API slow to post): shown at its own time among
-// the results, with no score and no «بعد …»; results, then live, then the rest; one lookupevent for a game 6 h past kick-off
-{
-  const GAME = '2573391';   // Al-Ahli × Al-Khaleej, 22 Oct 18:00 UTC, NS in the file
-  const open2 = async (now, answer, width = 960, height = 540) => {
-    const asked = [];
-    const extra = (r, u) => {
-      if (!u.pathname.endsWith('lookupevent.php')) return false;
-      asked.push(u.searchParams.get('id'));
-      const ev = answer && SAUDI_FILE.events.find(e => e.idEvent === u.searchParams.get('id'));
-      r.fulfill({ json: { events: ev ? [{ ...ev, ...answer }] : null }, headers: { 'Access-Control-Allow-Origin': '*' } });
-      return true;
-    };
-    const o = await open('tv.html', 'teams=136013&leagues=' + encodeURIComponent('Saudi-Arabian Pro League') + '&events=f1,ufc,boxing&panel=matches',
-      { width, height, now, net: tvMock(extra) });
-    await o.p.evaluate(() => { EVENT_LEAGUES.f1 = [{ id: 'E1', name: 'Formula 1' }]; EVENT_LEAGUES.ufc = [{ id: 'E2', name: 'UFC' }];
-                               EVENT_LEAGUES.boxing = [{ id: 'E3', name: 'Boxing' }]; });
-    await o.p.evaluate(() => loadMatches());
-    await o.p.waitForTimeout(800);
-    await o.p.evaluate(() => loadLive());   // the page's own timer does it every 2 minutes
-    await o.p.waitForTimeout(400);
-    return { ...o, asked };
-  };
-  const rowsOf = p => p.evaluate(() => matchRows().map(h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.replace(/\s+/g, ' ').trim(); }));
-  const slotOf = p => p.evaluate(() => { const out = []; MATCH_PAGE = -1; for (let k = 0; k < 40; k++) renderMatches(true);
-    for (let k = 0; k < MATCH_PAGES; k++) { renderMatches(true); document.querySelectorAll('#match-row .mblock').forEach(b => out.push(b.innerText.replace(/\s+/g, ' ').trim())); } return out; });
-  for (const [width, height] of [[1920, 1080], [960, 540]]) {
-    const tag = `a past game still «NS», ${width}x${height}`;
-    // Friday 13:00 in Riyadh: 16 h after kick-off. The lookup says nothing new (still NS): the game stays, without a score
-    const o = await open2(TV_NOW, { strStatus: 'NS' }, width, height);
-    const rows = await rowsOf(o.p), slot = await slotOf(o.p);
-    { const p = o.p;
-    // SHOT item2-card-${width} | 0
-    }
-    check(`${tag}: no script errors`, !o.errors.length, o.errors.join('; '));
-    check(`${tag}: the card: the two results, then the unscored game at its own time (no score, no «بعد»), then the rest by time`,
-      rows[0].startsWith('الحزم ٢ - ٢') && rows[1].startsWith('الفتح ١ - ٣') && rows[2].startsWith('الأهلي × الخليج')
-      && !/[٠-٩] - [٠-٩]|بعد|انتهت|مباشر/.test(rows[2]) && rows[3].startsWith('الفيصلي × النصر'), rows.slice(0, 5).join(' | '));
-    check(`${tag}: the slot shows it too, in the same place`,
-      slot.findIndex(b => b.startsWith('الأهلي × الخليج')) === slot.findIndex(b => b.startsWith('الفتح')) + 1
-      && !/بعد/.test(slot.find(b => b.startsWith('الأهلي × الخليج')) || 'بعد'), slot.slice(0, 4).join(' | '));
-    check(`${tag}: ONE lookupevent for it (16 h past), and not again`, o.asked.join() === GAME, o.asked.join());
-    await o.p.evaluate(() => loadLive()); await o.p.evaluate(() => loadLive()); await o.p.waitForTimeout(300);
-    check(`${tag}: asked once per game however often the page looks`, o.asked.join() === GAME, o.asked.join());
-    await o.ctx.close();
-  }
-  {   // the lookup brings the result: shown as a result at its own time
-    const o = await open2(TV_NOW, { strStatus: 'FT', intHomeScore: '3', intAwayScore: '1' });
-    const rows = await rowsOf(o.p);
-    check('a past game still «NS»: when lookupevent has its result, the result shows in its place (٣ - ١ انتهت)',
-      rows[2].startsWith('الأهلي ٣ - ١ الخليج') && rows[2].includes('انتهت'), rows.slice(0, 4).join(' | '));
-    await o.ctx.close();
-  }
-  {   // 4.5 h after kick-off (Thursday 22:30 UTC): shown with no score, not asked for yet (under 6 h)
-    const o = await open2(new Date('2026-10-22T22:30:00Z'), { strStatus: 'NS' });
-    const rows = await rowsOf(o.p);
-    check('a past game still «NS» under 6 h after kick-off: shown with no score, no lookup yet',
-      rows.some(t => t.startsWith('الأهلي × الخليج') && !/بعد|[٠-٩] - [٠-٩]/.test(t)) && !o.asked.length, o.asked.join() + ' / ' + rows.slice(0, 4).join(' | '));
-    await o.ctx.close();
-  }
-  {   // the order: results, the unscored past game, live, then the rest by time
-    const o = await open2(TV_NOW, { strStatus: 'NS' });
-    const rows = await o.p.evaluate(() => {
-      LEAGUE_DATA['Saudi-Arabian Pro League'].events.push({ idEvent: 'LIVE1', idLeague: '4668', idHomeTeam: '136012', idAwayTeam: '136016', strHomeTeam: 'Al-Ettifaq', strAwayTeam: 'Damac',
-        strStatus: '2H', strTimestamp: '2026-10-23T09:00:00', dateEvent: '2026-10-23', strTime: '09:00:00', strSport: 'Soccer', intHomeScore: '1', intAwayScore: '0', strProgress: '60' });
-      return matchRows().map(h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.replace(/\s+/g, ' ').trim(); });
-    });
-    const kind = t => /انتهت/.test(t) ? 'result' : /مباشر/.test(t) ? 'live' : t.startsWith('الأهلي × الخليج') ? 'pending' : 'next';
-    const seq = rows.map(kind).join(' ');
-    check('order: results, the unscored past game, live, then the rest (no past game after a coming one)',
-      /^result result pending live( next)+$/.test(seq), seq + ' / ' + rows.join(' | '));
-    await o.ctx.close();
-  }
-}
-
-// ---- the two longest games of every league side by side: each fits its line (or the pair goes one to a page), at three sizes
-for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
-  const clubs = JSON.parse(readFileSync(path.join(ROOT, 'assets/shared/teams.json'), 'utf8'));
-  const { p, ctx, errors } = await open('tv.html', 'teams=&leagues=NBA', { width, height });
-  const r = await p.evaluate(clubs => {
-    const bad = [], names = [...new Set(clubs.flatMap(c => c.leagues))].filter(l => l !== 'National teams'), row = document.getElementById('match-row');
-    for (const lg of names) {
-      const byLen = clubs.filter(c => c.leagues.includes(lg)).sort((a, b) => b.ar.length - a.ar.length);
-      const ev = (a, b, i) => ({ idEvent: lg + i, idHomeTeam: a.id, strHomeTeam: a.en, idAwayTeam: b.id, strAwayTeam: b.en,
-                                 strTimestamp: new Date(Date.now() + 36e5 * (i + 2)).toISOString() });
-      LEAGUE_DATA = { NBA: { updated: new Date(0).toISOString(), events: [ev(byLen[0], byLen[1], 0), ev(byLen[2], byLen[3], 1)] } };
-      MATCHES_LOADED = true; MATCH_PAGE = -1;
-      for (let k = 0; k < 4; k++) {
-        renderMatches(true);
-        row.querySelectorAll('.mblock .big > span').forEach(sp => { if (!fits(sp) || sp.textContent.includes('…')) bad.push(lg + ': ' + sp.textContent); });
-      }
-    }
-    return { n: names.length, bad };
-  }, clubs);
-  check(`the longest names of all ${r.n} leagues, two games a page, at ${width}x${height}: every game whole on one line`,
-    !errors.length && r.n >= 16 && !r.bad.length, r.bad.join(' | ') + errors.join('; '));
-  await ctx.close();
-}
-
-// ---- the page turn of a league round: 10 s a page of two games once there are more than 3 pages (real timers, one run)
-{
-  const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
-  await ctx.route(/^https?:/, r => r.abort());
-  const p = await ctx.newPage();
-  await p.goto(page('tv.html') + '#gap=0&teams=&leagues=' + encodeURIComponent('Saudi-Arabian Pro League'));
-  const r = await p.evaluate(() => {
-    const t = h => new Date(Date.now() + h * 36e5).toISOString();
-    LEAGUE_DATA['Saudi-Arabian Pro League'] = { updated: t(-1), events: Array.from({ length: 9 }, (_, i) => ({ idEvent: 'q' + i,
-      idHomeTeam: '136013', strHomeTeam: 'Club ' + i, idAwayTeam: '136022', strAwayTeam: 'Team ' + i, strTimestamp: t(2 + i) })) };
-    MATCHES_LOADED = true; renderMatches();
-    return { pages: MATCH_PAGES, slot: SLOT_MATCHES };
-  });
-  const seenPages = new Set();
-  const t0 = Date.now();
-  while (Date.now() - t0 < 26000) { seenPages.add(await p.evaluate(() => MATCH_PAGE)); await p.waitForTimeout(500); }
-  check('league only (no club followed): the slot shows matches, 5 pages, turning by itself (3 turns in 26 s: 15 s, then 10 s)',
-    r.slot && r.pages === 5 && seenPages.size >= 3, JSON.stringify({ ...r, seen: [...seenPages] }));
-  await ctx.close();
-}
-
-// ---- no league followed: nothing changes (no request for a league's file, the old title)
-{
   const seen = [];
-  const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
-  await ctx.route(/^https?:/, r => { seen.push(r.request().url()); return r.abort(); });
-  const p = await ctx.newPage();
-  await p.goto(page('tv.html') + '#gap=0&teams=136013&panel=matches');
-  await p.waitForTimeout(800);
-  const t = await p.evaluate(() => ({ leagues: CONFIG.leagues, hd: document.getElementById('week-hd').textContent }));
-  check('no league followed: #leagues empty, no league file asked for, the card keeps «مباريات فرقك»',
-    !t.leagues.length && !seen.some(u => /data-leagues/.test(u)) && t.hd === 'مباريات فرقك', JSON.stringify(t) + seen.join(','));
+  const { p, ctx, errors } = await open('tv.html', 'leagues=Saudi-Arabian%20Pro%20League&teams=136013&panel=matches', {
+    width, height, net: r => { if (/data-leagues|thesportsdb/.test(r.request().url())) seen.push(r.request().url()); return false; },
+  });
+  await p.waitForTimeout(250);
+  const state = await p.evaluate(() => ({ header: document.querySelector('.week .hd').textContent,
+    matchRows: document.querySelectorAll('.week .mwhen, #match-row .mblock').length }));
+  check(`removed league at ${width}x${height}: no fixtures, card or network calls`,
+    !errors.length && seen.length === 0 && state.matchRows === 0 && ['آية اليوم', 'حديث اليوم'].includes(state.header),
+    JSON.stringify(state) + seen.join(',') + errors.join('; '));
   await ctx.close();
 }
 
@@ -2552,13 +2032,13 @@ const HOME_SEED = ({ isha = '19:15' } = {}) => `
 `;
 const HOME_NOW = new Date('2026-10-22T13:40:00Z');   // Thursday 16:40 in Riyadh: the evening adhkar window
 const TASKS12 = ['اتصل بالسباك', 'شراء حليب وخبز', 'موعد الأسنان الثلاثاء', 'تجديد الإقامة', 'سداد فاتورة الكهرباء', 'غسيل السيارة', 'حجز الفندق', 'الاتصال بالجد'];
-const HOME_COMBOS = [   // [name, cards, extra hash, games to put in (when it has the matches card)]
-  ['matches + prayer row + hours', 'matches,prayerrow,hourly', 'teams=136013', LONG_GAMES],
-  ['matches (short names) + prayer row + hours', 'matches,prayerrow,hourly', 'teams=136013', SHORT_GAMES],
+const HOME_COMBOS = [   // [name, cards, extra hash, sample data]
+  ['verse + prayer row', 'verse,prayerrow', '', null],
+  ['wisdom + hours', 'wisdom,hourly', '', null],
   ['verse + stocks', 'verse,stocks', 'stocks=2222,1120,AAPL', null],
   ['adhkar alone', 'adhkar', '', null],
-  ['next prayer + matches + hours', 'nextprayer,matches,hourly', 'teams=136013', SHORT_GAMES],
-  ['tasks + forecast', 'tasks,forecast', 'tasks=' + encodeURIComponent(TASKS12.join('\n')), null],
+  ['next prayer + hours', 'nextprayer,hourly', '', null],
+  ['tasks + verse', 'tasks,verse', 'tasks=' + encodeURIComponent(TASKS12.join('\n')), null],
 ];
 const homeCards = async (cards, W, { style = 'current', tight = false, extra = '', games = null, digits = 'hindi', isha = '19:15', width, height } = {}) => {
   const n = cards.split(',').length, [bw, bh] = homeBox(n, W, tight), seen = [];
@@ -2610,7 +2090,7 @@ for (const style of ['current', 'glass1', 'dark3']) {
 }
 // the narrow prayer row (a card of a pair is about half the box): «العشاء ٦:٥١ م» still fits its cell, on one line, at every size
 for (const [style, W] of [['current', 960], ['glass1', 1280], ['dark3', 960], ['current', 1920]]) {
-  const o = await homeCards('matches,prayerrow,hourly', W, { style, extra: 'teams=136013', games: SHORT_GAMES, isha: '18:51' });
+  const o = await homeCards('verse,prayerrow,hourly', W, { style, isha: '18:51' });
   const r = await o.p.evaluate(() => { const card = CARDS[1].el.getBoundingClientRect(), cells = [...CARDS[1].ul.querySelectorAll('.pc')], last = cells[cells.length - 1];
     const b = last.querySelector('b'), i = last.querySelector('i'), cell = last.getBoundingClientRect();
     return { name: b.textContent, time: i.textContent, one: [b, i].every(x => x.getClientRects().length === 1), inCell: [b, i].every(x => x.scrollWidth <= last.clientWidth + 1),
@@ -2645,21 +2125,22 @@ for (const [list, want, mid] of [['verse', 'verse', 'n1'], ['prayers,hourly', 'p
   check('the screensaver ignores home_panel: its own card, one', !q.errors.length && r2 === 'year', r2);
   await q.ctx.close();
 }
-{   // the layout follows the count: one card the box's width; two side by side (the first on the right); the third under them, full width
+{   // the layout follows the count: one card fills the box; two stack; three keep the pair above the third
   for (const [cards, cols] of [['verse', 1], ['verse,stocks', 2], ['verse,stocks,year', 2]]) {
     const o = await homeCards(cards, 1920, { extra: 'stocks=2222,1120,AAPL' }), r = await o.p.evaluate(() => CARDS.map(c => { const b = c.el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.right), Math.round(b.top), Math.round(b.bottom)]; }));
     const n = r.length, [w] = homeBox(n, 1920);
     let ok = n === cards.split(',').length;
     if (n === 1) ok = ok && r[0][0] === 0 && r[0][1] === 461;
-    if (n >= 2) ok = ok && r[0][1] === w && r[1][0] === 0 && r[0][0] - r[1][1] === 22 && Math.abs((r[0][1] - r[0][0]) - 560) <= 2 && Math.abs((r[1][1] - r[1][0]) - 540) <= 2 && r[0][2] === r[1][2];
+    if (n === 2) ok = ok && r.every(b => b[0] === 0 && b[1] === w) && r[1][2] >= r[0][3] + 21;
+    if (n === 3) ok = ok && r[0][1] === w && r[1][0] === 0 && r[0][0] - r[1][1] === 22 && Math.abs((r[0][1] - r[0][0]) - 560) <= 2 && Math.abs((r[1][1] - r[1][0]) - 540) <= 2 && r[0][2] === r[1][2];
     if (n === 3) ok = ok && r[2][0] === 0 && r[2][1] === w && r[2][2] >= Math.max(r[0][3], r[1][3]) + 21;
-    check(`home cards ${cards}: ${n} card${n > 1 ? 's' : ''} laid out ${n === 1 ? 'alone' : n === 2 ? '560 + 22 + 540 side by side, the first on the right' : 'in a pair with the third under it, full width'}`, !o.errors.length && ok, JSON.stringify(r));
+    check(`home cards ${cards}: ${n} card${n > 1 ? 's' : ''} laid out ${n === 1 ? 'alone' : n === 2 ? 'stacked, full width' : 'in a pair with the third under it, full width'}`, !o.errors.length && ok, JSON.stringify(r));
     await o.ctx.close();
   }
 }
 {   // one card is not changed by the sizing: full size, no steps, whatever the box
-  for (const kind of ['matches', 'verse', 'adhkar', 'tasks', 'prayerrow', 'hourly']) {
-    const o = await homeCards(kind, 1920, { extra: 'teams=136013&tasks=' + encodeURIComponent(TASKS12.join('\n')), games: kind === 'matches' ? LONG_GAMES : null });
+  for (const kind of ['verse', 'wisdom', 'adhkar', 'tasks', 'prayerrow', 'hourly']) {
+    const o = await homeCards(kind, 1920, { extra: 'tasks=' + encodeURIComponent(TASKS12.join('\n')) });
     const r = await o.p.evaluate(() => CARDS.map(c => [c.z, c.cap, c.maxLen]));
     check(`home card ${kind} alone: never stepped down`, !o.errors.length && JSON.stringify(r) === '[[1,0,0]]', JSON.stringify(r));
     await o.ctx.close();
@@ -2727,9 +2208,9 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
     plain: await smartAt(p, '13:00'),
   };
   check(`${tag}: no script errors`, !errors.length, errors.join('; '));
-  check(`${tag}: a followed team's game, live or within 60 minutes: the matches card with that game`,
-    [r.live, r.in59, r.soonOverAdhkar].every(x => x.eff === 'matches' && x.rows === 1 && /الهلال/.test(x.text) && /النصر/.test(x.text))
-    && /٢ - ١/.test(r.live.text) && r.in61.eff !== 'matches' && r.over.eff !== 'matches', JSON.stringify({ live: r.live, in59: r.in59, in61: r.in61.eff, over: r.over.eff, soon: r.soonOverAdhkar }));
+  check(`${tag}: football data cannot make the smart card choose matches`,
+    [r.live, r.in59, r.in61, r.over, r.soonOverAdhkar].every(x => x.eff !== 'matches' && !/الهلال|النصر|٢ - ١/.test(x.text)),
+    JSON.stringify({ live: r.live, in59: r.in59, in61: r.in61, over: r.over, soon: r.soonOverAdhkar }));
   check(`${tag}: the adhkar window (morning from Fajr, evening until Maghrib): the adhkar card; at night and after the window it is not`,
     r.morning.eff === 'adhkar' && /الصباح/.test(r.morning.hd) && r.evening.eff === 'adhkar' && /المساء/.test(r.evening.hd)
     && r.night.eff !== 'adhkar' && r.plain.eff !== 'adhkar', JSON.stringify({ m: r.morning.eff, e: r.evening.eff, n: r.night.eff }));
@@ -2766,62 +2247,23 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
   await o.p.waitForTimeout(300);
   const hosts = [...new Set(asked.map(u => new URL(u).host))].sort();
   const forecast = asked.filter(u => /api\.open-meteo\.com\/v1\/forecast/.test(u));
-  check('smart card: only the requests of the cards it shows (prayers, matches, the forecast with its hours), one forecast request',
-    hosts.every(h => ['api.aladhan.com', 'www.thesportsdb.com', 'api.open-meteo.com', 'raw.githubusercontent.com', 'api.coingecko.com', 'query1.finance.yahoo.com'].includes(h) || /thesportsdb\.com$/.test(h))
-    && forecast.length === 1 && /hourly=/.test(forecast[0]) && !asked.some(u => /air-quality|tvmaze|wikidata/.test(u)), asked.join(' '));
+  check('smart card: prayer and forecast requests only, with no sports request',
+    hosts.every(h => ['api.aladhan.com', 'api.open-meteo.com', 'raw.githubusercontent.com', 'api.coingecko.com', 'query1.finance.yahoo.com'].includes(h))
+    && forecast.length === 1 && /hourly=/.test(forecast[0]) && !asked.some(u => /thesportsdb|air-quality|tvmaze|wikidata/.test(u)), asked.join(' '));
   await o.ctx.close();
 }
 
-// ---- the live game grows: a followed team under way shows alone, big: score, minute, «مباشر», both crests where there are crests
-// (the launcher's card), names on one line; when it ends the card goes back to the list. The bottom slot does the same.
-const LIVE_EV = (over = {}) => ({ idEvent: 'L1', strHomeTeam: 'Manchester United', strAwayTeam: 'Borussia Monchengladbach', idHomeTeam: '100', idAwayTeam: '101', strSport: 'Soccer',
-  strTimestamp: new Date(Date.now() - 67 * 60000).toISOString(), strStatus: '2H', strProgress: '67', intHomeScore: 2, intAwayScore: 1,
-  strHomeTeamBadge: BADGE(100), strAwayTeamBadge: BADGE(101), ...over });
-const LATER_EV = { idEvent: 'L2', strHomeTeam: 'Al-Ahli', strAwayTeam: 'Al-Ittihad', idHomeTeam: '102', idAwayTeam: '103', strSport: 'Soccer', strTimestamp: new Date(Date.now() + 30 * 3600000).toISOString() };
-for (const [width, height, label] of [[461, 250, 'launcher card'], [1920, 1080, 'launcher card at 1920'], [960, 540, 'launcher card at 960']]) {
-  for (const digits of ['hindi', 'latin']) {
-    const seen = [];
-    const { p, ctx, errors } = await open('tv.html', `teams=136013&panel=matches&widget=1&digits=${digits}`, { width, height, net: crestNet(seen) });
-    const setup = ev2 => p.evaluate(([a, b]) => { NEXT_LIST = { '136013': [a, b] }; MATCHES = { '136013': a }; MATCHES_LOADED = true; loadCrests(); renderPanel(false, 'matches'); }, [LIVE_EV(ev2), LATER_EV]);
-    await setup({});
-    await p.waitForTimeout(250);
-    const r = await p.evaluate(() => { const li = [...document.querySelectorAll('#week-list li')], big = document.querySelector('#week-list li.lv'), t = big && big.querySelector('.lvt');
-      return { n: li.length, big: !!big, text: big ? big.textContent.replace(/\s+/g, ' ').trim() : '', crests: big ? [...big.querySelectorAll('img.cr')].filter(i => i.src.startsWith('data:image/png')).length : 0,
-        oneLine: t ? t.scrollWidth <= t.clientWidth + .5 && [...t.querySelectorAll('.tm')].every(x => x.getClientRects().length === 1) : false,
-        score: big ? big.querySelector('.sc').getBoundingClientRect().height : 0, norm: parseFloat(getComputedStyle(document.querySelector('#week-list li.lv .tm')).fontSize),
-        base: parseFloat(getComputedStyle(document.querySelector('.week')).fontSize), dots: document.getElementById('week-list').textContent.includes('…') }; });
-    const tag = `live game big, ${label} ${width}x${height} ${digits}`;
-    check(`${tag}: only that game, big: «مباشر», the minute and the score; no script errors`, !errors.length && r.n === 1 && r.big && /مباشر/.test(r.text) && /الدقيقة|Minute|67|٦٧/.test(r.text)
-      && (digits === 'latin' ? /2 - 1/.test(r.text) : /٢ - ١/.test(r.text)) && !r.dots, JSON.stringify(r) + errors.join('; '));
-    check(`${tag}: both crests, the names on one line (the long ones shortened if they must be)`, r.crests === 2 && r.oneLine, JSON.stringify(r));
-    // the game ends: the list is back, with its result
-    await p.evaluate(() => { MATCHES['136013'] = Object.assign({}, MATCHES['136013'], { strStatus: 'FT', strTimestamp: new Date(Date.now() - 3 * 3600000).toISOString() }); NEXT_LIST['136013'][0] = MATCHES['136013']; renderPanel(false, 'matches'); });
-    const back = await p.evaluate(() => ({ lv: !!document.querySelector('#week-list li.lv'), n: document.querySelectorAll('#week-list li').length }));
-    check(`${tag}: when it ends the card goes back to the list`, !back.lv && back.n >= 1, JSON.stringify(back));
-    await ctx.close();
-  }
-}
-{   // the shortened pair: both teams with long names, in a narrow slot
-  const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&widget=1', { width: 300, height: 200 });
-  await p.evaluate(ev => { NEXT_LIST = { '136013': [ev] }; MATCHES = { '136013': ev }; MATCHES_LOADED = true; renderPanel(false, 'matches'); }, LIVE_EV({ strHomeTeam: 'Borussia Monchengladbach', strAwayTeam: 'Eintracht Frankfurt' }));
-  const r = await p.evaluate(() => { const t = document.querySelector('#week-list .lvt'); return { ok: t.scrollWidth <= t.clientWidth + .5, text: t.textContent, k: t.style.getPropertyValue('--k') }; });
-  check('live game big: two long names in a narrow card still on one line, no «…»', !errors.length && r.ok && !r.text.includes('…'), JSON.stringify(r));
-  await ctx.close();
-}
-// the bottom slot: the same game, big, alone, with its minute
+// ---- A live score and broadcaster request still cannot bring back football.
 for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
-  const { p, ctx, errors } = await open('urtv.html', 'teams=136013', { width, height });
-  const r = await p.evaluate(ev => {
-    NEXT_LIST = { '136013': [ev] }; MATCHES = { '136013': ev }; MATCHES_LOADED = true; renderMatches();
-    const row = document.getElementById('match-row'), b = row.querySelector('.mblock'), sp = b.querySelector('.big > span');
-    const before = parseFloat(getComputedStyle(b.querySelector('.big')).fontSize);
-    return { n: row.querySelectorAll('.mblock').length, big: b.classList.contains('lvb'), text: row.textContent.replace(/\s+/g, ' ').trim(), fit: sp.scrollWidth <= sp.clientWidth + .5, size: before,
-             oneLine: [...sp.querySelectorAll('.tm')].every(x => x.getClientRects().length === 1) };
-  }, LIVE_EV({ strHomeTeam: 'Al-Hilal', strAwayTeam: 'Al-Nassr' }));
-  const plain = await p.evaluate(ev => { NEXT_LIST = { '136013': [ev] }; MATCHES = { '136013': ev }; renderMatches(); return parseFloat(getComputedStyle(document.querySelector('#match-row .mblock .big')).fontSize); },
-    { ...LATER_EV, idEvent: 'L9' });
-  check(`bottom slot ${width}x${height}: the live game alone and big (larger than a game to come), score, minute, «مباشر», one line`,
-    !errors.length && r.n === 1 && r.big && /مباشر/.test(r.text) && /الدقيقة ٦٧/.test(r.text) && /٢ - ١/.test(r.text) && r.fit && r.oneLine && r.size > plain, JSON.stringify({ ...r, plain }) + errors.join('; '));
+  const seen = [];
+  const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&slot=matches', {
+    width, height, net: r => { if (/thesportsdb/.test(r.request().url())) seen.push(r.request().url()); return false; },
+  });
+  const r = await p.evaluate(() => ({ label: document.getElementById('slot-label').textContent,
+    matches: document.querySelectorAll('.mblock, .mwhen, img.cr').length }));
+  check(`live football request at ${width}x${height}: no game, score or lookup`,
+    !errors.length && r.label !== 'المباريات' && r.matches === 0 && seen.length === 0,
+    JSON.stringify(r) + seen.join(',') + errors.join('; '));
   await ctx.close();
 }
 
@@ -2933,7 +2375,7 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
   await w.ctx.close();
 }
 
-// ---- «يومك» (today): the next prayer, the next game of a followed team, the first open task, the next occasion; a line with
+// ---- «يومك» (today): the next prayer, the first open task and the next occasion; football data never adds a line.
 // nothing to say is left out. Beside the clock at three sizes, and in a home slot.
 const TODAY_SEED = (o = {}) => `
   buildPrayers({ Fajr: '04:50', Sunrise: '06:05', Dhuhr: '11:40', Asr: '15:00', Maghrib: '17:45', Isha: '19:15' });
@@ -2953,10 +2395,10 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
         dots: document.getElementById('week-list').textContent.includes('…'), text: document.getElementById('week-list').innerText }; });
     const tag = `today card ${width}x${height} ${digits}`, N = s => digits === 'latin' ? s.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)) : s;
     check(`${tag}: no script errors, the title`, !o.errors.length && hd === 'يومك', o.errors.join('; ') + hd);
-    check(`${tag}: four lines: the next prayer and its time, the game, the first open task, the occasion`,
-      rows.length === 4 && rows[0].k === 'الصلاة القادمة' && rows[0].v === N('المغرب · ٥:٤٥ م') && /بعد/.test(rows[0].r)
-      && rows[1].k === 'المباراة' && /الهلال/.test(rows[1].v) && /النصر/.test(rows[1].v) && /بعد ٣ ساعات|بعد 3 ساعات/.test(N(rows[1].r) + N('بعد ٣ ساعات'))
-      && rows[2].k === 'المهمة' && rows[2].v === 'اتصل بالسباك' && rows[3].k === 'المناسبة القادمة' && /يوم/.test(rows[3].r), JSON.stringify(rows));
+    check(`${tag}: three lines: the next prayer, first open task and occasion; no match`,
+      rows.length === 3 && rows[0].k === 'الصلاة القادمة' && rows[0].v === N('المغرب · ٥:٤٥ م') && /بعد/.test(rows[0].r)
+      && rows[1].k === 'المهمة' && rows[1].v === 'اتصل بالسباك' && rows[2].k === 'المناسبة القادمة' && /يوم/.test(rows[2].r)
+      && !rows.some(x => x.k === 'المباراة'), JSON.stringify(rows));
     check(`${tag}: fits: clear of the clock, the top and the bottom bar; no «…», nothing cut`, fit.clear && !fit.cut && !fit.dots, JSON.stringify(fit));
     check(`${tag}: ${digits === 'latin' ? 'Latin' : 'Arabic'} digits only`, digits === 'latin' ? !/[٠-٩]/.test(fit.text) : !/[0-9]/.test(fit.text), fit.text);
     // each line only if it has something: no game, no task
@@ -2981,7 +2423,7 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
     const o = await open('tv.html', `teams=136013&home_panel=today,prayerrow&widget=1&tasks=${encodeURIComponent('اتصل بالسباك')}`, { width: bw, height: bh, now: new Date('2026-10-22T13:40:00Z') });
     await o.p.evaluate(TODAY_SEED({ game: 90 }));
     const r = await homeProbe(o.p), rows = await todayRows(o.p);
-    check(`today card in a home slot, screen ${W} (${bw}x${bh}): four lines, no overlap, no «…», nothing cut off`, !o.errors.length && rows.length === 4 && !r.overlap.length && !r.outside.length && !r.dots.length && !r.cut.length, JSON.stringify({ r, rows }) + o.errors.join('; '));
+    check(`today card in a home slot, screen ${W} (${bw}x${bh}): three lines, no overlap, no «…», nothing cut off`, !o.errors.length && rows.length === 3 && !rows.some(x => x.k === 'المباراة') && !r.overlap.length && !r.outside.length && !r.dots.length && !r.cut.length, JSON.stringify({ r, rows }) + o.errors.join('; '));
     await o.ctx.close();
   }
 }
@@ -2989,7 +2431,7 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
 // ---- the settings' pickers draw the focused card live: the page itself, card only (#panel=<choice>&cardstyle=<style>&widget=1) with the
 // current settings, in a box of 436 x 300 over a dimmed photo (SettingsActivity.pickWithPreview, which sizes its frame to the card). Every choice and every style: no errors, drawn, inside the box.
 const PREVIEW = [436, 300];
-for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nextprayer', 'matches', 'verse', 'wisdom', 'adhkar', 'stocks', 'tasks', 'year', 'smart', 'today']) {
+for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nextprayer', 'verse', 'wisdom', 'adhkar', 'stocks', 'tasks', 'year', 'smart', 'today']) {
   for (const style of ['current', 'dark1', 'glass1', 'dark3', 'glass3']) {
     if (style !== 'current' && !['verse', 'matches', 'prayerrow', 'nextprayer', 'hourly', 'today', 'adhkar'].includes(panel)) continue;
     const o = await open('tv.html', `city=%D8%AC%D8%AF%D8%A9&lat=21.5433&lon=39.1728&teams=136013&stocks=2222,1120,AAPL&tasks=${encodeURIComponent('اتصل بالسباك\nشراء حليب')}&panel=${panel}&cardstyle=${style}&widget=1`,
@@ -3004,145 +2446,19 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nex
   }
 }
 
-// ---- matches are asked one at a time, and loading, failed and empty read differently
+// ---- Removed football settings make no sports request and keep a non-football card visible.
 {
-  const hdr = { 'Access-Control-Allow-Origin': '*' };
-  const session = async (hash, handler) => {
-    const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
-    const seen = [];
-    await ctx.route(/^https?:/, r => { const u = new URL(r.request().url()); seen.push({ t: Date.now(), u: u.host + u.pathname + u.search }); return handler(r, u, seen); });
-    const p = await ctx.newPage();
-    const errors = [];
-    p.on('pageerror', e => errors.push(e.message));
-    await p.goto(page('tv.html') + '#' + hash + '&gap=0');
-    return { p, ctx, seen, errors };
-  };
-  const ok = (r, body) => r.fulfill({ json: body, headers: hdr });
-  const slot = p => p.evaluate(() => document.getElementById('match-row').innerText.trim());
-  const card = p => p.evaluate(() => document.getElementById('week-list').innerText.trim());
-
-  // one request at a time, a pause between, whatever the number of teams
-  {
-    let live = 0, most = 0;
-    const o = await session('teams=136013,136137,133604&gap=150&panel=matches', async (r, u) => {
-      if (!/thesportsdb/.test(u.host)) return r.abort();
-      live++; most = Math.max(most, live);
-      await new Promise(res => setTimeout(res, 60));
-      live--;
-      return ok(r, u.pathname.endsWith('eventslast.php') ? { results: null } : { events: null });
-    });
-    await o.p.waitForTimeout(1800);
-    const asked = o.seen.filter(x => /eventsnext|eventslast/.test(x.u)).map(x => x.t);
-    const gaps = asked.slice(1).map((t, i) => t - asked[i]);
-    check('matches: six requests for three teams, one at a time, at least ~150 ms apart', asked.length === 6 && most === 1 && Math.min(...gaps) >= 120,
-      `n=${asked.length} most=${most} gaps=${gaps}`);
-    // a run that is going is not started again
-    const n0 = o.seen.length;
-    await o.p.evaluate(() => { BUSY.matches = true; });
-    await o.p.evaluate(() => loadMatches());
-    check('matches: a new run does not start while one is going', o.seen.length === n0, String(o.seen.length - n0));
-    await o.ctx.close();
-  }
-  // loading: the request has not come back yet
-  {
-    const o = await session('teams=136013&panel=matches', (r, u) => /thesportsdb/.test(u.host) ? new Promise(() => {}) : r.abort());
-    await o.p.waitForTimeout(700);
-    check('matches: before the first answer the slot and the card say «جارٍ التحميل…»', (await slot(o.p)) === 'جارٍ التحميل…' && (await card(o.p)) === 'جارٍ التحميل…',
-      (await slot(o.p)) + ' | ' + (await card(o.p)));
-    await o.ctx.close();
-  }
-  // failed: the server answers 429 — not «no games»; later it answers, and the first load is retried after the short wait
-  {
-    let down = true;
-    const o = await session('teams=136013&panel=matches&gap=0&retry=1500', (r, u) => {
-      if (!/thesportsdb/.test(u.host)) return r.abort();
-      if (down) return r.fulfill({ status: 429, body: 'slow down', headers: hdr });
-      return ok(r, u.pathname.endsWith('eventslast.php') ? { results: null }
-        : { events: [{ idEvent: 'x1', strHomeTeam: 'Al-Hilal', idHomeTeam: '136013', strAwayTeam: 'Al-Nassr', idAwayTeam: '136137', strSport: 'Soccer', strStatus: 'NS',
-            strTimestamp: new Date(Date.now() + 3 * 36e5).toISOString() }] });
-    });
-    await o.p.waitForTimeout(700);
-    const s1 = await slot(o.p), c1 = await card(o.p);
-    check('matches: requests that failed with nothing saved say «تعذّر التحديث», in the slot and the card', s1 === 'تعذّر التحديث' && c1 === 'تعذّر التحديث', s1 + ' | ' + c1);
-    down = false;
-    await o.p.waitForTimeout(1800);
-    const s2 = await slot(o.p);
-    check('matches: a first load that failed is retried by itself and then shows the game', /الهلال/.test(s2) && !/تعذّر/.test(s2), s2);
-    // a refresh that fails later keeps the games and says since when
-    down = true;
-    await o.p.evaluate(() => { BUSY.matches = false; return loadMatches(); });
-    await o.p.waitForTimeout(300);
-    const s3 = await slot(o.p), label = await o.p.evaluate(() => document.getElementById('slot-label').textContent), hd = await o.p.evaluate(() => document.getElementById('week-hd').textContent);
-    check('matches: a failed refresh keeps the games and the label says «آخر تحديث …»', /الهلال/.test(s3) && /آخر تحديث/.test(label) && /آخر تحديث/.test(hd), s3 + ' | ' + label + ' | ' + hd);
-    await o.ctx.close();
-  }
-  // empty: the server answered, there is just nothing
-  {
-    const o = await session('teams=136013&panel=matches&gap=0', (r, u) => /thesportsdb/.test(u.host)
-      ? ok(r, u.pathname.endsWith('eventslast.php') ? { results: null } : { events: null }) : r.abort());
-    await o.p.waitForTimeout(700);
-    const s = await slot(o.p), c = await card(o.p);
-    check('matches: an answer with no games says «لا مباريات هذا الأسبوع»', s === 'لا مباريات هذا الأسبوع' && c === 'لا مباريات هذا الأسبوع', s + ' | ' + c);
-    await o.ctx.close();
-  }
-  // the offset of this TV: 0-29 minutes, drawn once and kept
-  {
-    const o = await session('teams=', (r) => r.abort());
-    await o.p.waitForTimeout(300);
-    const a = await o.p.evaluate(() => ({ j: localStorage.getItem('jitter'), ms: JITTER_MS }));
-    await o.p.reload(); await o.p.waitForTimeout(300);
-    const b = await o.p.evaluate(() => ({ j: localStorage.getItem('jitter'), ms: JITTER_MS }));
-    check('jitter: a whole number of minutes from 0 to 29, kept across a restart', /^\d+$/.test(a.j) && +a.j >= 0 && +a.j < 30 && a.ms === a.j * 60000 && b.j === a.j, JSON.stringify([a, b]));
-    const t = await o.p.evaluate(() => { localStorage.setItem('jitter', '7'); return null; });
-    await o.p.reload(); await o.p.waitForTimeout(300);
-    const c = await o.p.evaluate(() => JITTER_MS);
-    check('jitter: the stored offset is the one used', c === 7 * 60000, String(c));
-    await o.ctx.close();
-  }
-  // Wikidata: a lookup that failed is not repeated for an hour
-  {
-    const o = await session('teams=', (r, u) => r.abort());
-    await o.p.waitForTimeout(300);
-    await o.p.evaluate(() => { arName('Zzyzx Rovers', 'team'); });
-    await o.p.waitForTimeout(500);
-    const n1 = o.seen.filter(x => /wikidata/.test(x.u)).length;
-    await o.p.evaluate(() => { arName('Zzyzx Rovers', 'team'); renderMatches(); });
-    await o.p.waitForTimeout(500);
-    const n2 = o.seen.filter(x => /wikidata/.test(x.u)).length;
-    const kept = await o.p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('arFail') || '{}')));
-    check('Wikidata: one failed lookup is remembered with its time and not asked again within the hour', n1 === 1 && n2 === 1 && kept.join() === 'team:Zzyzx Rovers', `${n1} ${n2} ${kept}`);
-    await o.p.evaluate(() => { const f = JSON.parse(localStorage.getItem('arFail')); AR_FAIL['team:Zzyzx Rovers'] = Date.now() - 3700000; arName('Zzyzx Rovers', 'team'); });
-    await o.p.waitForTimeout(500);
-    const n3 = o.seen.filter(x => /wikidata/.test(x.u)).length;
-    check('Wikidata: after an hour it is asked again', n3 === 2, String(n3));
-    await o.ctx.close();
-  }
-  // TVmaze: the list is replaced only when every day answered
-  {
-    const ep = (name, n, date) => ({ id: n, number: n, season: 1, airdate: date, show: { name, type: 'Scripted', genres: ['Drama'], language: 'English', rating: { average: 8 } } });
-    const today = new Date().toISOString().slice(0, 10);
-    let phase = 'good', daysSeen = 0;
-    const o = await session('teams=&panel=shows&gap=0&retry=60000', (r, u) => {
-      if (!/tvmaze/.test(u.host)) return r.abort();
-      if (phase === 'down') return r.fulfill({ status: 503, body: '', headers: hdr });
-      if (phase === 'part') return ++daysSeen % 3 === 0 ? r.fulfill({ status: 503, body: '', headers: hdr }) : ok(r, [ep('Other Show', 2, today)]);
-      return ok(r, [ep('Good Show', 1, today)]);
-    });
-    await o.p.waitForTimeout(1000);
-    const t1 = await card(o.p);
-    check('shows: every day answered, the list is shown', /Good Show/.test(t1), t1);
-    phase = 'part';
-    await o.p.evaluate(() => loadWeek()); await o.p.waitForTimeout(800);
-    const t2 = await card(o.p), hd2 = await o.p.evaluate(() => document.getElementById('week-hd').textContent);
-    check('shows: a day that did not answer keeps the old list, marked with since when', /Good Show/.test(t2) && !/Other Show/.test(t2) && /آخر تحديث/.test(hd2), t2 + ' | ' + hd2);
-    await o.ctx.close();
-    phase = 'down';
-    const q = await session('teams=&panel=shows&gap=0&retry=60000', (r, u) => /tvmaze/.test(u.host) ? r.fulfill({ status: 503, body: '', headers: hdr }) : r.abort());
-    await q.p.waitForTimeout(1000);
-    const t3 = await card(q.p);
-    check('shows: a total failure says «تعذّر التحديث», not «لا جديد»', t3 === 'تعذّر التحديث', t3);
-    await q.ctx.close();
-  }
+  const seen = [];
+  const o = await open('tv.html', 'teams=136013,136137&panel=matches&slot=matches', {
+    net: r => { if (/thesportsdb|data-leagues/.test(r.request().url())) seen.push(r.request().url()); return false; },
+  });
+  await o.p.waitForTimeout(250);
+  const state = await o.p.evaluate(() => ({ header: document.querySelector('.week .hd').textContent,
+    matches: document.querySelectorAll('.mblock, .mwhen, img.cr').length,
+    slot: document.getElementById('slot-label').textContent }));
+  check('removed football: no match loading state, data request or football slot', !o.errors.length && seen.length === 0 && state.matches === 0
+    && state.slot !== 'المباريات' && ['آية اليوم', 'حديث اليوم'].includes(state.header), JSON.stringify(state) + seen.join(',') + o.errors.join('; '));
+  await o.ctx.close();
 }
 
 // ---- prices keep their time: a failed refresh leaves the last price, dimmed and marked; Yahoo is asked once, and politely
@@ -3546,127 +2862,18 @@ for (const [now, want, why] of [['2026-02-25T09:00:00Z', 9, 'Ramadan 1447'], ['2
   await ctx.close();
 }
 
-// ---- the formatters of the clock and of the games are made once
+// ---- Removed football fragments remain inert after redraws and layout changes.
 {
-  const { p, ctx } = await open('tv.html', 'teams=136013&panel=matches', { now: new Date('2026-10-22T13:40:00Z') });
-  const r = await p.evaluate(() => {
-    const R = Intl.DateTimeFormat; let made = 0;
-    Intl.DateTimeFormat = function (...a) { made++; return new R(...a); };
-    Intl.DateTimeFormat.prototype = R.prototype;
-    const ev = { idEvent: 'q1', strHomeTeam: 'Al-Hilal', idHomeTeam: '136013', strAwayTeam: 'Al-Nassr', idAwayTeam: '136137', strSport: 'Soccer', strStatus: 'NS',
-                 strTimestamp: new Date(Date.now() + 5 * 36e5).toISOString() };
-    NEXT_LIST['136013'] = [ev]; MATCHES['136013'] = ev;
-    for (let i = 0; i < 40; i++) { riyadhParts(); matchWhen(new Date(ev.strTimestamp)); gameBlock(ev, Date.now()); cityToday(); hmParts(new Date()); }
-    renderMatches(); renderPanel(false, 'matches');
-    Intl.DateTimeFormat = R;
-    return { made, when: matchWhen(new Date(ev.strTimestamp)), p: riyadhParts() };
+  const seen = [];
+  const o = await open('tv.html', 'teams=136013&leagues=Saudi-Arabian%20Pro%20League&panel=matches&widget=1', {
+    net: r => { if (/thesportsdb|data-leagues/.test(r.request().url())) seen.push(r.request().url()); return false; },
   });
-  check('formatters: riyadhParts, matchWhen, gameBlock and the date builders make no new Intl.DateTimeFormat per call', r.made === 0, `${r.made} made`);
-  check('formatters: and they still give the right answer (Thursday 13:40Z is 16:40 in Riyadh)', r.p.h === 16 && r.p.mi === 40 && /٩:٤٠|9:40/.test(r.when), JSON.stringify(r));
-  await ctx.close();
-}
-
-
-// ---- a game is ONE line, on the launcher's card and on the screensaver's: «الهلال [شعار] ٢ - ١ [شعار] النصر», then the date, then «بعد …»
-// (or «انتهت» with the day it was played). Too long: the clubs' short names, then a shorter date, then a smaller size; never «…», never two lines.
-const NOW_G = HOME_NOW.getTime();
-const gameAt = (i, h, a, hrs, o = {}) => ({ idEvent: 'q' + i, strHomeTeam: h, strAwayTeam: a, idHomeTeam: String(100 + 2 * i), idAwayTeam: String(101 + 2 * i),
-  strHomeTeamBadge: o.nohb ? null : BADGE(100 + 2 * i), strAwayTeamBadge: o.noab ? null : BADGE(101 + 2 * i), strTimestamp: new Date(NOW_G + hrs * 36e5).toISOString(),
-  ...(o.score ? { intHomeScore: o.score[0], intAwayScore: o.score[1], strStatus: 'FT' } : { strStatus: 'NS' }) });
-const MIXED = [gameAt(0, 'Al-Hilal', 'Al-Nassr', -5, { score: [2, 1] }), gameAt(1, 'Al-Ahli', 'Al-Ittihad', 3, { noab: true }),
-               gameAt(2, 'Manchester United', 'Borussia Monchengladbach', 30)];
-const put = games => `NEXT_LIST = { '136013': ${JSON.stringify(games)} };`;
-const oneLine = p => p.evaluate(() => [...(((CARDS.find(c => c.eff === 'matches') || CARDS[0]).ul).querySelectorAll('li.mg'))].map(li => {
-  const row = li.firstElementChild, r = row.getBoundingClientRect(), kids = [...row.children], bx = e => e.getBoundingClientRect();
-  const mid = kids.find(k => k.classList.contains('sc') || k.classList.contains('x')), tms = kids.filter(k => k.classList.contains('tm'));
-  const cen = e => { const b = bx(e); return (b.left + b.right) / 2; };
-  const mk = tm => ({ nm: tm.querySelector('.nm'), cr: tm.querySelector('img.cr') });
-  const h = mk(tms[0]), a = mk(tms[1]);
-  // the crests on screen: a row that dropped its crests (.nocr, to keep its full names) has them in the DOM but not shown
-  const on = e => e && getComputedStyle(e).display !== 'none' ? e : null, hc = on(h.cr), ac = on(a.cr);
-  const mids = kids.map(k => { const b = bx(k); return (b.top + b.bottom) / 2; });
-  return {
-    text: li.textContent.replace(/\s+/g, ' ').trim(), cut: rowCut(row), dots: li.innerText.includes('…'),
-    oneLine: Math.max(...mids) - Math.min(...mids) < r.height * .5 && li.getBoundingClientRect().height < 3 * parseFloat(getComputedStyle(row).fontSize),
-    inside: kids.every(k => { const b = bx(k); return !b.width || (b.left >= r.left - .5 && b.right <= r.right + .5); }),
-    // right to left: the home club, its crest, the score, the guest's crest, the guest club (a missing crest leaves its name next to the score)
-    order: [h.nm, hc, mid, ac, a.nm].filter(Boolean).map(cen).every((x, k, all) => !k || x < all[k - 1]),
-    gapHome: hc ? Math.abs(bx(hc).right - bx(h.nm).left) : 0, gapAway: ac ? Math.abs(bx(a.nm).right - bx(ac).left) : 0,
-    crests: [h.cr, a.cr].filter(Boolean).length, shown: [h.cr, a.cr].filter(e => e && getComputedStyle(e).display !== 'none').length, domHome: h.cr ? !!(h.nm.compareDocumentPosition(h.cr) & 4) : true, domAway: a.cr ? !!(a.cr.compareDocumentPosition(a.nm) & 4) : true,
-    date: (row.querySelector('.mwhen') || {}).textContent || '', dt: row.querySelector('.dt').textContent.replace(/\s+/g, ' ').trim(), size: row.style.fontSize,
-    font: parseFloat(getComputedStyle(row).fontSize),
-  };
-}));
-for (const [cards, W, wide, label] of [['matches,prayerrow,hourly', 1920, 560, 'first slot (560)'], ['prayerrow,matches,hourly', 1920, 540, 'second slot (540)'],
-    ['prayerrow,hourly,matches', 1920, 1122, 'full-width third slot'], ['prayerrow,hourly,matches', 960, 561, 'third slot at 960'], ['matches', 1920, 461, 'alone (461)']]) {
-  for (const [gn, games] of [['mixed', MIXED], ['short names', [gameAt(0, 'Al-Hilal', 'Al-Nassr', 3), gameAt(1, 'Al-Ahli', 'Al-Ittihad', 27, { noab: true })]]]) {
-    const o = await homeCards(cards, W, { extra: 'teams=136013' });
-    await o.p.evaluate(put(games) + ' renderPanel(false);'); await o.p.evaluate(() => loadCrests()); await o.p.waitForTimeout(300);
-    await o.p.evaluate(() => { for (const c of CARDS) c.ul.__h = null; renderPanel(false, 'matches'); });
-    const rows = await oneLine(o.p);
-    const tag = `home matches ${label}, ${gn}`;
-    check(`${tag}: ${games.length} games, each on one line inside the card, nothing cut, no «…»`,
-      !o.errors.length && rows.length >= Math.min(2, games.length) && rows.length <= games.length && rows.every(r => r.oneLine && !r.cut && !r.dots && r.inside), JSON.stringify(rows) + o.errors.join('; '));
-    check(`${tag}: the crests sit next to the score, close to the names: club, crest, score, crest, club`,
-      rows.every(r => r.order && r.domHome && r.domAway && r.gapHome < r.font * .7 && r.gapAway < r.font * .7) && rows.some(r => r.shown === 2), JSON.stringify(rows));
-    check(`${tag}: the date is on the line: a finished game says «انتهت» and the day, a game to come the day and time and «بعد …»`,
-      rows.every(r => r.date && (r.dt === 'انتهت' ? /[٠-٩]+ \S+$/.test(r.date.trim()) : /^بعد [٠-٩]+ \S+$/.test(r.dt))), JSON.stringify(rows.map(r => [r.date, r.dt])));
-    check(`${tag}: the games of a card share one size`, new Set(rows.map(r => r.size)).size === 1, JSON.stringify(rows.map(r => r.size)));
-    if (wide >= 540 && gn === 'short names') check(`${tag}: short clubs keep the full date at this width`, rows.every(r => !r.size && /·|\S+ [٠-٩]+ \S+$/.test(r.date)), JSON.stringify(rows.map(r => [r.size, r.date])));
-    await o.ctx.close();
-  }
-}
-{   // a score and a «×»: «الهلال [شعار] ٢ - ١ [شعار] النصر» and «الأهلي [شعار] × [شعار] الاتحاد»
-  const o = await homeCards('matches', 1920, { extra: 'teams=136013' });
-  await o.p.evaluate(put(MIXED) + ' renderPanel(false);'); await o.p.evaluate(() => loadCrests()); await o.p.waitForTimeout(300);
-  const rows = await oneLine(o.p);
-  check('home matches: the score between the crests, «×» when there is no score', rows[0].text.includes('٢ - ١') && rows[1].text.includes('×') && !rows[1].text.includes(' - '), JSON.stringify(rows.map(r => r.text)));
-  check('home matches: a club with no crest keeps its name next to the score, the other side keeps its crest', rows[1].crests === 1 && rows[1].order, JSON.stringify(rows[1]));
+  await o.p.evaluate(() => { for (let i = 0; i < 4; i++) renderPanel(false); });
+  const state = await o.p.evaluate(() => ({ matches: document.querySelectorAll('.mblock, .mwhen, img.cr').length,
+    header: document.querySelector('.week .hd').textContent }));
+  check('removed football stays absent after redraws', !o.errors.length && seen.length === 0 && state.matches === 0
+    && ['آية اليوم', 'حديث اليوم'].includes(state.header), JSON.stringify(state) + seen.join(',') + o.errors.join('; '));
   await o.ctx.close();
-}
-for (const width of [400, 330]) {   // a narrow box: the steps down the ladder, one line to the end
-  const o = await homeCards('matches', 1920, { extra: 'teams=136013', width, height: 250 });
-  await o.p.evaluate(put(MIXED) + ' renderPanel(false);'); await o.p.evaluate(() => loadCrests()); await o.p.waitForTimeout(300);
-  await o.p.evaluate(() => { for (const c of CARDS) c.ul.__h = null; renderPanel(false, 'matches'); });
-  const rows = await oneLine(o.p), r = await homeProbe(o.p);
-  // does the long row fit with its full names once its crests are gone (the full date, the full size)? Measured on the page's own fonts,
-  // so the rule is checked, not one font's widths: full names first, no crests before short names, short names only when that does not fit
-  const fullFits = await o.p.evaluate(() => {
-    const row = [...document.querySelectorAll('li.mg')][2].firstElementChild, save = row.innerHTML, cls = row.className, fs = row.style.fontSize;
-    row.querySelectorAll('[data-full]').forEach(e => { e.textContent = e.dataset.full; });
-    row.classList.add('nocr'); row.style.fontSize = '';
-    const ok = !rowCut(row);
-    row.innerHTML = save; row.className = cls; row.style.fontSize = fs;
-    return ok;
-  });
-  check(`home matches alone, ${width} px wide: one line each, the short date or a smaller size, nothing cut or ending in «…»`,
-    !o.errors.length && rows.length === 3 && rows.every(x => x.oneLine && !x.cut && !x.dots && x.inside) && !r.cut.length && !r.dots.length, JSON.stringify([rows, r]));
-  // the long row loses its crests first and keeps the full names; only a card too narrow for that takes the short names
-  check(`home matches alone, ${width} px wide: the long row has no crests, ${fullFits ? 'keeps its full names (they fit without crests)' : 'takes the short names (the full ones do not fit even without crests)'}, and every row still has its date`,
-    rows[2].shown === 0 && rows.every(x => x.date) && (fullFits ? rows[2].text.includes('مانشستر يونايتد') : rows[2].text.includes('اليونايتد') && !rows[2].text.includes('مانشستر')),
-    JSON.stringify([fullFits, rows.map(x => [x.text, x.date, x.size, x.shown])]));
-  if (width === 330) check('home matches alone, 330 px wide: too narrow for the long row\'s full names even without crests', !fullFits);
-  if (width === 400) check(`home matches alone, ${width} px wide: rows that fit with their crests keep them`, rows[0].shown === 2 && rows[1].shown === 1, JSON.stringify(rows.map(x => x.shown)));
-  await o.ctx.close();
-}
-{   // a smaller card step brings the whole names and date back where they now fit, and the other way round
-  const o = await homeCards('matches', 1920, { extra: 'teams=136013', width: 400, height: 250 });
-  await o.p.evaluate(put(MIXED) + ' renderPanel(false);'); await o.p.waitForTimeout(200);
-  const r = await o.p.evaluate(() => { const c = CARDS[0], longest = () => [...c.ul.querySelectorAll('.mwhen')].map(e => e.textContent.length);
-    const before = longest(); for (let k = 0; k < 5; k++) shrinkCard(c, true); return { before, after: longest(), z: c.z, cut: [...c.ul.querySelectorAll('li.mg')].some(li => rowCut(li.firstElementChild)) }; });
-  check('home matches: a card that steps down refits its rows (dates get their full form back where it fits), nothing cut', !o.errors.length && !r.cut && r.z < 1
-    && r.after.some((n, i) => n >= r.before[i]), JSON.stringify(r));
-  await o.ctx.close();
-}
-{   // the screensaver's card: the same one line, no crests; the date is on it for a finished game too
-  for (const [w, h] of [[1920, 1080], [1280, 720], [960, 540]]) {
-    const o = await open('tv.html', 'teams=136013&panel=matches', { width: w, height: h, now: HOME_NOW });
-    await o.p.evaluate(put(MIXED) + ' renderPanel(false);');
-    const rows = await oneLine(o.p), crests = await o.p.evaluate(() => document.querySelectorAll('img.cr').length);
-    check(`screensaver matches card ${w}x${h}: one line per game (as on the home screen), no crests, the date on every row`,
-      !o.errors.length && rows.length === 3 && !crests && rows.every(x => x.oneLine && !x.cut && !x.dots && x.inside && x.date), JSON.stringify(rows) + o.errors.join('; '));
-    await o.ctx.close();
-  }
 }
 
 // ---- the launcher's «المهام» card is a button (#live=1): a mic mark in its corner, a ring while Android says it has the focus; no other
@@ -4157,11 +3364,11 @@ for (const j of [0, 15, 29]) {
     return true;
   } });
   await p.waitForTimeout(1500);
-  check('a game under way after the first fixtures load: its live lookup follows at once', asked.some(u => u.includes('lookupevent.php?id=live1')), asked.join(' '));
+  check('a game under way cannot trigger a live lookup after football removal', asked.length === 0, asked.join(' '));
   await ctx.close();
 }
 
-const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','nextprayer','matches','verse','wisdom','adhkar','stocks','tasks','year','smart','today'];
+const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','nextprayer','verse','wisdom','adhkar','stocks','tasks','year','smart','today'];
 // ---- «شريط الأسواق»: #mkbar=off hides the markets line, keeps the weather, asks for nothing; the saved list comes back with on
 {
   const SHOTS = process.env.SHOTS;   // a folder: the pictures of the new options are written there
@@ -4434,9 +3641,8 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     c0.oc.name === c1.oc.name && c0.oc.name === c2.oc.name && c0.oc.days - c1.oc.days === 1 && c2.oc.days - c0.oc.days === 2, JSON.stringify([c0.oc, c1.oc, c2.oc]));
 }
 
-// ---- «حجم الساعة» laid out again, and «بطاقة ثانية» (#panel2=, beside the small clock only). medium and small are not the large
-// layout with a smaller clock: the clock and its city line stand on the right edge, the card grows; small makes three columns
-// down to the bottom row, the second card in the middle one. Every card, every style, both digit systems, three screen sizes:
+// ---- «حجم الساعة» laid out again, and «بطاقة ثانية» (#panel2=, stacked at every clock size). medium and small are not the large
+// layout with a smaller clock: the clock and its city line stand on the right edge, the card grows. Every card, every style, both digit systems, three screen sizes:
 // nothing overlaps, goes off screen, is cut or ends in «…». The large clock is the page of origin/next, pixel for pixel.
 {
   const SCREENS = [[1920, 1080], [1280, 720], [960, 540]];
@@ -4478,6 +3684,7 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     const stage = document.querySelector('.stage').innerText;
     return { hit, off, cut, dots: text.includes('…'), latin: (stage.match(/[0-9]+/g) || []).filter(x => x !== '500'), hindi: /[٠-٩]/.test(stage),
       kinds: CARDS.map(c => c.eff), cols: cards.map(box).map(b => [x(b.l), x(b.r), Math.round(b.b - b.t)]),
+      rows: cards.map(box).map(b => [Math.round(b.t), Math.round(b.b)]),
       panels: [...document.querySelectorAll('.bottom .panel')].map(box).map(b => [x(b.l), x(b.r)]),
       stageL: S.left, clock: box(document.querySelector('.clock')), dates: box(document.querySelector('.dates')), markets: box(document.querySelector('.markets')) };
   }, [kinds, ai]);
@@ -4496,17 +3703,17 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     }
     await o.ctx.close();
   }
-  // the pair beside the small clock: every kind is the first card and the second once, in every style and both digit systems
+  // the two cards stack beside the clock: every kind is the first card and the second once, in every style and both digit systems
   for (const [w, h] of SCREENS) for (const style of STYLES) for (const digits of ['hindi', 'latin']) {
     const o = await openSaver(`clocksize=small&panel=verse&panel2=prayers&cardstyle=${style}&digits=${digits}`, w, h), fails = [];
     for (let i = 0; i < KINDS.length; i++) {
       const pair = [KINDS[i], KINDS[(i + 1 + (w + style.length) % (KINDS.length - 1)) % KINDS.length]];
       const r = await probe(o.p, pair);
-      // three columns: the cards over the occasion and the slot, the same height
-      const lined = r.cols.length === 2 && Math.abs(r.cols[0][0] - r.panels[1][0]) < 1.5 && Math.abs(r.cols[1][0] - r.panels[2][0]) < 1.5 && r.cols[0][2] === r.cols[1][2];
+      const lined = r.cols.length === 2 && Math.abs(r.cols[0][0] - r.cols[1][0]) < 1.5
+        && Math.abs(r.cols[0][1] - r.cols[1][1]) < 1.5 && r.rows[1][0] > r.rows[0][1];
       if (bad(r, digits) || !lined) fails.push(pair + ' ' + JSON.stringify(r));
     }
-    check(`second card, ${style}, ${digits}, ${w}x${h}: every kind in the pair fits, the pair is one height over the bottom row's columns`,
+    check(`second card, ${style}, ${digits}, ${w}x${h}: every kind in the stack fits above the bottom row`,
       !fails.length && !o.errors.length, fails.slice(0, 3).join(' | ') + o.errors.join('; '));
     await o.ctx.close();
   }
@@ -4521,7 +3728,7 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
   }
   // read from the sofa (Look's review): in the pair no text goes below its floor, a row's text 2.1vh and any other line 1.45vh; the
   // three clock sizes are 1 : .75 : .55; a shorter list's rows spread down its card
-  for (const [w, h] of [[960, 540], [1280, 720]]) for (const digits of ['hindi', 'latin']) for (const pair of [['matches', 'adhkar'], ['adhkar', 'forecast'], ['verse', 'stocks'], ['today', 'hourly']]) {
+  for (const [w, h] of [[960, 540], [1280, 720]]) for (const digits of ['hindi', 'latin']) for (const pair of [['wisdom', 'adhkar'], ['adhkar', 'forecast'], ['verse', 'stocks'], ['today', 'hourly']]) {
     const o = await openSaver(`clocksize=small&panel=${pair[0]}&panel2=${pair[1]}&digits=${digits}`, w, h);
     await o.p.evaluate(() => { renderPanel(false); fitCards(); });
     const r = await o.p.evaluate(() => {
@@ -4558,9 +3765,9 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     const moved = at.map(JSON.parse).some(a => a.flat(2).some((v, i) => Math.abs(v - JSON.parse(at[0]).flat(2)[i]) > 1));
     check(`second card, ${digits}, ${w}x${h}: the cards and the bottom row do not move with the hour`, !moved, at.join(' '));
   }
-  // the second card is there only beside the small clock, with a first card, and never the first one again or the next prayer
-  for (const [hash, want] of [['clocksize=small&panel=verse&panel2=prayers', 'verse,prayers'], ['clocksize=medium&panel=verse&panel2=prayers', 'verse'],
-      ['clocksize=large&panel=verse&panel2=prayers', 'verse'], ['panel=verse&panel2=prayers', 'verse'], ['clocksize=small&panel=verse&panel2=verse', 'verse'],
+  // the second card appears at every clock size with a first card, but never repeats the first or the next prayer
+  for (const [hash, want] of [['clocksize=small&panel=verse&panel2=prayers', 'verse,prayers'], ['clocksize=medium&panel=verse&panel2=prayers', 'verse,prayers'],
+      ['clocksize=large&panel=verse&panel2=prayers', 'verse,prayers'], ['panel=verse&panel2=prayers', 'verse,prayers'], ['clocksize=small&panel=verse&panel2=verse', 'verse'],
       ['clocksize=small&panel=verse&panel2=nextprayer', 'verse'], ['clocksize=small&panel=verse&panel2=bogus', 'verse'], ['clocksize=small&panel=verse&panel2=none', 'verse'],
       ['clocksize=small&panel=none&panel2=prayers', ''], ['clocksize=small&panel=verse&panel2=prayers&widget=1', 'verse'],
       ['clocksize=small&home_panel=hourly&panel2=prayers&widget=1', 'hourly']]) {
@@ -4579,76 +3786,22 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     check('panel2 is a look only: the snapshot key is the same with and without it', keys[1] && keys[0] === k2, JSON.stringify([keys, k2]));
     await q.ctx.close();
   }
-  // the large clock: the page of origin/next, pixel for pixel (the default, clocksize=large, a second card that large ignores)
-  const shot = async (file, hash, w, h) => {   // once the fonts are in, the loaders done, and the picture holds still
-    const o = await open(file, hash, { width: w, height: h, now: HOME_NOW });
-    // what is compared is the layout, over one flat colour in place of the photo: the photo is drawn in raster tiles, and a redraw
-    // that moves nothing (offline, the games' failed load redraws the cards) now and then repaints a tile a little apart, 900-950 px
-    // at most 21/255 at 960x540 between two seams, in next's own page before and after it. It landed in one of the two pages and
-    // not the other, even after a wait for the loaders and one more redraw. The photo's placement is the same code in both pages.
-    // the photo's own dimming (--dim, set per photo from its brightness) is pinned too: the rotation is shuffled now, so which photo comes first at this moment is not the same in the two
-    // pages, and its dimming moved every pixel of the frame by a few levels (the 15 checks of 4.3: 1,994,324 px at most 9/255). The layout is what is compared.
-    await o.p.addStyleTag({ content: '.photo{background-image:none!important;background-color:#4a4238!important;--dim:.5!important}' });
+  // The large clock is visually stable after the page settles, including a two-card stack.
+  for (const [w, h] of SCREENS) for (const hash of ['', 'clocksize=large',
+      'panel=verse&panel2=prayers&clocksize=large&cardstyle=dark3',
+      'panel=prayers&panel2=hourly&cardstyle=glass1&digits=latin']) {
+    const o = await open('tv.html', hash, { width: w, height: h, now: HOME_NOW });
     await o.p.evaluate(() => document.fonts.ready);
-    await o.p.waitForFunction(() => typeof BUSY !== 'object' || !Object.values(BUSY).some(Boolean), null, { timeout: 8000 }).catch(() => {});
-    let png = await o.p.screenshot({ animations: 'disabled' });
-    for (let k = 0; k < 6; k++) {
-      await o.p.waitForTimeout(250);
-      const next = await o.p.screenshot({ animations: 'disabled' });
-      if (next.equals(png)) break;
-      png = next;
-    }
+    await o.p.waitForTimeout(350);
+    const state = await o.p.evaluate(() => {
+      const box = e => e.getBoundingClientRect(), bottom = box(document.querySelector('.bottom'));
+      const cards = [...document.querySelectorAll('.mid > .week')].map(box);
+      return { off: cards.some(b => b.left < -1 || b.right > innerWidth + 1 || b.top < -1 || b.bottom > innerHeight + 1),
+        overlap: cards.some(b => b.bottom > bottom.top - 1), clock: document.getElementById('ck-h').textContent.length > 0 };
+    });
+    check(`large clock ${w}x${h} «${hash || 'default'}»: cards and clock fit after settling`,
+      !o.errors.length && !state.off && !state.overlap && state.clock, JSON.stringify(state) + o.errors.join('; '));
     await o.ctx.close();
-    return png;
-  };
-  let base = null, why = '';
-  try {
-    const git = (...a) => execFileSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20 });
-    try { git('rev-parse', '--verify', '-q', BASE_REF + '^{commit}'); }
-    catch (e) { git('fetch', '-q', '--depth=1', 'origin', BASE_REF.replace(/^origin\//, '') + ':refs/remotes/' + BASE_REF); }   // a shallow CI checkout
-    // where this branch left next, not next as it is now: a large layout changed on purpose on next later (or on master's own
-    // fixes) is not this branch's change. A shallow checkout has no history to look in: next itself, then.
-    let at = BASE_REF;
-    try { at = git('merge-base', 'HEAD', BASE_REF).trim() || BASE_REF; } catch (e) {}
-    base = path.join(mkdtempSync(path.join(tmpdir(), 'urtv-base-')), 'tv.html');
-    writeFileSync(base, git('show', at + ':dist/tv.html'));
-  } catch (e) { base = null; why = String(e.message).split('\n')[0]; }
-  check(`large clock: the page of ${BASE_REF} to compare with`, !!base, why);
-  // the pixels that differ and by how much at most (0-255 a channel). Two loads of one page are not always the same to the last
-  // level: the large blurred shadows (the clock's, the year strip's today) come out up to 5 levels apart.
-  // A change of layout or colour is tens of levels on the text's edges, so 8 tells the two apart (and the medium clock must fail it).
-  const NOISE = 8;
-  const pixelDiff = async (a, b) => {
-    const ctx = await browser.newContext(), p = await ctx.newPage();
-    const r = await p.evaluate(async ([a, b, noise]) => {
-      const load = async s => { const i = new Image(); i.src = 'data:image/png;base64,' + s; await i.decode();
-        const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
-        return g.getImageData(0, 0, c.width, c.height); };
-      const x = await load(a), y = await load(b);
-      if (x.width !== y.width || x.height !== y.height) return { n: -1, max: 255 };
-      let n = 0, max = 0, box = null;   // box: where the pixels above the noise are (x0, y0, x1, y1), to tell which part of the screen moved
-      for (let k = 0; k < x.data.length; k += 4) {
-        const d = Math.max(Math.abs(x.data[k] - y.data[k]), Math.abs(x.data[k + 1] - y.data[k + 1]), Math.abs(x.data[k + 2] - y.data[k + 2]));
-        if (d) { n++; if (d > max) max = d; }
-        if (d > noise) { const px = (k >> 2) % x.width, py = Math.floor((k >> 2) / x.width);
-          box = box ? [Math.min(box[0], px), Math.min(box[1], py), Math.max(box[2], px), Math.max(box[3], py)] : [px, py, px, py]; }
-      }
-      return box ? { n, max, box } : { n, max };
-    }, [a.toString('base64'), b.toString('base64'), NOISE]);
-    await ctx.close();
-    return r;
-  };
-  if (base) {
-    for (const [w, h] of SCREENS) {
-      for (const hash of ['', 'clocksize=large', 'teams=136013&panel=verse&panel2=prayers&clocksize=large&cardstyle=dark3',
-          'teams=136013&panel=prayers&panel2=hourly&cardstyle=glass1&digits=latin', 'clocksize=large&panel=year&cardstyle=glass3&yearstrip=1']) {
-        const a = await shot(base, hash, w, h), b = await shot('tv.html', hash, w, h), d = a.equals(b) ? { n: 0, max: 0 } : await pixelDiff(a, b);
-        check(`large clock ${w}x${h} «${hash || 'default'}»: pixel for pixel the page of ${BASE_REF} (${d.n} px of renderer noise, at most ${d.max}/255)`,
-          d.n >= 0 && d.max <= NOISE, JSON.stringify(d));
-      }
-      const d = await pixelDiff(await shot(base, 'teams=136013&panel=verse', w, h), await shot('tv.html', 'teams=136013&panel=verse&clocksize=medium', w, h));
-      check(`large clock ${w}x${h}: the comparison sees a real change (the medium clock is far from it)`, d.max > 4 * NOISE && d.n > 1000, JSON.stringify(d));
-    }
   }
 }
 

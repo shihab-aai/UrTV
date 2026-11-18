@@ -146,7 +146,7 @@ if shutil.which("sh"):
     def sh_cut(i, content):
         d = tempfile.mkdtemp(); tmp = os.path.join(d, "x.apk.b64")
         if content is not None: open(tmp, "w").write(content)
-        r = subprocess.run(["sh", "-c", tv.cut_back(tmp, i) + f"; echo -n 'PIECE' >> {tmp}; wc -c < {tmp}"], capture_output=True, text=True)
+        r = subprocess.run(["sh", "-c", tv.cut_back(tmp, i) + f"; printf %s 'PIECE' >> {tmp}; wc -c < {tmp}"], capture_output=True, text=True)
         return r.returncode, r.stderr.strip(), (open(tmp).read() if os.path.exists(tmp) else None), os.listdir(d)
     rc, err, body, left = sh_cut(0, None)
     cut_check("cut back at 0%, no file yet", rc == 0 and not err and body == "PIECE" and left == ["x.apk.b64"], (rc, err, body, left))

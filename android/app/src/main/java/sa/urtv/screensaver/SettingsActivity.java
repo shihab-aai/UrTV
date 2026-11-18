@@ -352,7 +352,7 @@ public class SettingsActivity extends Activity {
 
         header("بجانب الساعة");
         row("المحتوى", Prefs.panelLabel(prefs.panel()), R.drawable.ic_eye, new Runnable() { public void run() { pickPanel(-1); } });
-        // «بطاقة ثانية»: only beside the small clock (there is room for two cards there), and only with a first card (SecondCard)
+        // «بطاقة ثانية»: below the first card beside any clock size, only with a first card (SecondCard)
         if (SecondCard.rowShown(prefs.clockSize(), prefs.panel(), Prefs.SAVER_PANELS))
             row("بطاقة ثانية", Prefs.panelLabel(prefs.panel2(), "بدون"), R.drawable.ic_eye, new Runnable() { public void run() { pickPanel2(); } });
         row("شكل البطاقة", Prefs.cardStyleLabel(prefs.cardStyle()), R.drawable.ic_eye,
@@ -2114,38 +2114,6 @@ public class SettingsActivity extends Activity {
 
     /** «المظهر»: which of the two to choose; each opens its own list, the focused choice drawn beside it. */
     /** «تطبيقات في الشريط»: how many favourites the tray shows whole at once (5 as always, up to 10, or all of them); more scroll inside the tray */
-    /** «تطبيق المباريات»: «تلقائي» (UrTV Player when it is installed), «بدون», or one of the TV's apps */
-    private String matchAppLabel() {
-        String v = prefs.matchApp();
-        if (Prefs.MATCH_NONE.equals(v)) return "بدون";
-        if (Prefs.MATCH_AUTO.equals(v)) return "تلقائي (UrTV Player إن كان مثبّتاً)";
-        try { return String.valueOf(getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(v, 0))); }
-        catch (Exception e) { return v; }
-    }
-
-    private void pickMatchApp() {
-        final java.util.List<String> values = new java.util.ArrayList<>(java.util.Arrays.asList(Prefs.MATCH_AUTO, Prefs.MATCH_NONE));
-        final java.util.List<String> labels = new java.util.ArrayList<>(java.util.Arrays.asList("تلقائي (UrTV Player إن كان مثبّتاً)", "بدون"));
-        android.content.pm.PackageManager pm = getPackageManager();
-        java.util.TreeMap<String, String> apps = new java.util.TreeMap<>();
-        for (String cat : new String[] {android.content.Intent.CATEGORY_LEANBACK_LAUNCHER, android.content.Intent.CATEGORY_LAUNCHER}) {
-            for (android.content.pm.ResolveInfo r : pm.queryIntentActivities(new android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(cat), 0)) {
-                String pkg = r.activityInfo.packageName;
-                if (pkg.startsWith("sa.urtv.") || apps.containsValue(pkg)) continue;
-                apps.put(String.valueOf(r.loadLabel(pm)) + "\u0000" + pkg, pkg);
-            }
-        }
-        for (java.util.Map.Entry<String, String> e : apps.entrySet()) { values.add(e.getValue()); labels.add(e.getKey().substring(0, e.getKey().indexOf('\u0000'))); }
-        new Dlg(this).setTitle("تطبيق المباريات")
-            .setSingleChoiceItems(labels.toArray(new String[0]), Math.max(0, values.indexOf(prefs.matchApp())), (d, i) -> {
-                prefs.setMatchApp(values.get(i));
-                d.dismiss();
-                render();
-            })
-            .setNegativeButton("إلغاء", null)
-            .show();
-    }
-
     private void pickFavBar() {
         final String[] labels = new String[Prefs.FAV_BARS.length];
         for (int i = 0; i < labels.length; i++) labels[i] = Prefs.favBarLabel(Prefs.FAV_BARS[i]);
@@ -2171,15 +2139,6 @@ public class SettingsActivity extends Activity {
             })
             .setNegativeButton("إلغاء", null)
             .show();
-    }
-
-    /** «مباريات اليوم» lives in the home app (the page of the games, docs/PROPOSALS-NOV2.md §1). */
-    private void openMatches() {
-        try {
-            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.MatchesActivity"));
-        } catch (RuntimeException e) {
-            toast("حدّث الواجهة الرئيسية «تلفزيونك» أو ثبّتها أولاً");
-        }
     }
 
     /**

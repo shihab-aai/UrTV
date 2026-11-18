@@ -132,6 +132,6 @@ miss = lc.unmatched(cat)
 check("the report lists the hand names that matched nothing", "Spanish La Liga 2" in miss and "4328" not in miss)
 src = (ROOT / ".github/tools/league_catalogue.py").read_text(encoding="utf-8")
 check("the free key only, and a gap between requests", 'json/123/"' in src and re.search(r"^GAP = [3-9]", src, re.M))
-wf = (ROOT / ".github/workflows/league-catalogue.yml").read_text(encoding="utf-8")
-check("CI: weekly at most, the rules checked on the file before the push", re.search(r"cron: '\d+ \d+ \* \* \d'", wf) and "league_catalogue_test.py catalogue/catalogue.json" in wf)
+check("the retired league catalogue workflow is absent from future releases",
+      not (ROOT / ".github/workflows/league-catalogue.yml").exists())
 sys.exit(1 if failed else 0)

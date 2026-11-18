@@ -45,8 +45,9 @@ check("markets CI: fx.json is carried by every run (the one-commit branch is reb
 
 # ---- items 14-19 (the owner's TV photos)
 main = text(HOME / "MainActivity.java")
-check("item 14: two more round buttons in the top row, «الأسواق» and «المباريات», the same Pill (size and, since design/43, a 4 dp = 8 px gap) and the same focus", 'pill(S.t("الأسواق"), R.drawable.ic_markets)' in main and 'pill(S.t("المباريات"), R.drawable.ic_matches)' in main
-      and "row.add(marketsBtn);" in main and "row.add(matchesBtn);" in main and "static final int GAP = 4;" in text(HOME / "Pill.java"))
+check("item 14: the markets button keeps the round Pill and 4 dp gap; the removed matches button is absent",
+      'pill(S.t("الأسواق"), R.drawable.ic_markets)' in main and 'pill(S.t("المباريات"), R.drawable.ic_matches)' not in main
+      and "row.add(marketsBtn);" in main and "row.add(matchesBtn);" not in main and "static final int GAP = 4;" in text(HOME / "Pill.java"))
 act = text(HOME / "MarketsActivity.java")
 check("item 15/19: the title, then ONE controls row (the live switch, «صرف العملات», «أخفِ المبالغ» on «محفظتي»), then one quiet 12 sp status line, then the tabs", "controls.addView(liveSwitch()" in act and "controls.addView(fxBtn" in act and "ctl.addView(hideBtn" in act
       and act.index("page.addView(controls") < act.index("page.addView(state") < act.index("page.addView(tabRow"))

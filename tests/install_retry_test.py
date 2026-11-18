@@ -179,7 +179,7 @@ def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None,
     env = dict(os.environ, QUERY_EXTRA=query_extra, PKGS=pkgs, STOCKLESS=stockless, PKGEXTRA=pkgextra, VERIFIER_EMPTY=verifier_empty, DIALOG=dialog, TCLTV=tcltv, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, RESOLVE=resolve, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
                FAIL_SWITCHES=str(fail_switches), FIRST_DROP=first_drop, DOWN_POLLS=str(down_polls),
                WIFI_AFTER=wifi_after, WIFI_READ=wifi_read, START=start, FRONT=front, DROP_AT=drop_at, DISABLED=disabled, CAST=cast, CAST_WIZ=cast_wiz, MAKER=maker, DEVICE=device, **({"URTV_WIFI_WAIT": wifi_wait} if wifi_wait is not None else {}), J=str(tree / "optimize" / "run" / "home-switch.json"))
-    r = subprocess.run(["bash", str(tree / "optimize" / script), *args], env=env, capture_output=True, text=True)
+    r = subprocess.run(["bash", str(tree / "optimize" / script), *args], env=env, capture_output=True, text=True, errors="replace")
     log = (t / "log").read_text().split() if (t / "log").exists() else []
     af = tree / "optimize" / "run" / "wifi-ask.txt"
     log.append("ask-" + ("changed" if af.exists() and "wifi-changed" in af.read_text() else "kept" if af.exists() else "none"))

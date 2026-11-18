@@ -77,9 +77,9 @@ check("«المباريات والأسواق» is the first button of «المز
 rows = re.findall(r'^\s*row\("([^"]+)"', settings[settings.index("private void render()"):], re.M)
 content = ["مباريات اليوم", "الفرق المتابعة (", "الدوريات كاملة", "رياضات أخرى", "صفحة الأسواق"]
 order = [r for r in rows if any(r.startswith(c) for c in content)]
-check("«مباريات اليوم» is the first row of «المباريات والأسواق» and «صفحة الأسواق» the fifth (four ▼ from the first)", [r.split(" (")[0] for r in order][:5] == ["مباريات اليوم", "الفرق المتابعة", "الدوريات كاملة", "رياضات أخرى", "صفحة الأسواق"], order)
-check("both rows open the launcher's pages, and those are exported", 'setClassName("sa.urtv.home", "sa.urtv.home.MatchesActivity")' in settings and 'setClassName("sa.urtv.home", "sa.urtv.home.MarketsActivity")' in settings
-      and re.search(r'android:name="\.MatchesActivity"\s+android:exported="true"', text(ROOT / "android/launcher/src/main/AndroidManifest.xml")) is not None
+check("the markets page is the first content row; the removed football rows are absent", order == ["صفحة الأسواق"], order)
+check("the markets row opens the launcher's exported page; the removed matches page is not exported", 'setClassName("sa.urtv.home", "sa.urtv.home.MatchesActivity")' not in settings and 'setClassName("sa.urtv.home", "sa.urtv.home.MarketsActivity")' in settings
+      and re.search(r'android:name="\.MatchesActivity"\s+android:exported="true"', text(ROOT / "android/launcher/src/main/AndroidManifest.xml")) is None
       and re.search(r'android:name="\.MarketsActivity"\s+android:exported="true"', text(ROOT / "android/launcher/src/main/AndroidManifest.xml")) is not None)
 check("from the home: OK on the stocks card opens the markets page, OK on the games widget the matches page",
       "launch(new Intent(MainActivity.this, MarketsActivity.class));" in main and "new Intent(MainActivity.this, MatchesActivity.class)" in main)

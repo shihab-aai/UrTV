@@ -22,7 +22,7 @@ with open(fake_py, "w") as f:
     f.write(r'''#!/usr/bin/env bash
 # $1 = -I, $2 = the script, $3 = the command (or --push-b64)
 if [ "$3" = --push-b64 ]; then
-  echo "PUSH $5" >> "$SENT"; cp "$4" "$KEPT/$(ls "$KEPT" | wc -l).m4a"; echo "pushed $4 -> $5 (1 bytes, md5 ok)"; exit 0
+  echo "PUSH $5" >> "$SENT"; cp "$4" "$KEPT/$(ls "$KEPT" | wc -l | tr -d '[:space:]').m4a"; echo "pushed $4 -> $5 (1 bytes, md5 ok)"; exit 0
 fi
 echo "$3" >> "$SENT"
 case "$3" in

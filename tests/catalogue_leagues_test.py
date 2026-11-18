@@ -40,7 +40,7 @@ check("a kept copy is shown at once only when CatalogueLeagues.useKept says so (
 check("saver.sh can follow one by id (id4719)", 'matches("id\\\\d{1,6}")' in rc)
 
 t = read(ROOT / "src/template.html")
-check("the page: #leagues= takes id4719, 8 at most; #lgn= names them", "/^id\\d{1,6}$/.test(x)).slice(0, 8)" in t and "_Q.get('lgn')" in t)
+check("the page ignores old #leagues= selections after football removal", "leagues: []" in t and "_Q.get('leagues')" not in t)
 check("the page: a catalogue league is asked of TheSportsDB (next and past), after the teams, in their queue", "eventsnextleague', 'eventspastleague'" in t
       and "leagues = loadLeagues(step, teamsAsked)" in t and "teamsDone();" in t and "await ready;" in t)
 check("the page: the copy of a league no longer picked goes", "if(!CONFIG.leagues.includes(k) && !(CONFIG.tour && k === 'tournaments')) delete LEAGUE_DATA[k];" in t)

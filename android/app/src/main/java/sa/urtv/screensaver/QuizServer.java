@@ -113,14 +113,14 @@ final class QuizServer {
             int state = 0, b;
             while (state < 4 && (b = in.read()) >= 0) {   // up to the blank line
                 head.write(b);
-                if (head.size() > HEAD_MAX) { reply(c, 431, "text/plain", "x".getBytes()); return; }
+                if (head.size() > HEAD_MAX) { reply(c, 431, "text/plain", "x".getBytes()); drain(c); return; }
                 if (System.nanoTime() > deadline) return;
                 state = (b == '\r' && (state == 0 || state == 2)) ? state + 1 : (b == '\n' && (state == 1 || state == 3)) ? state + 1 : (b == '\r' ? 1 : 0);
             }
             if (state < 4) return;
             String[] lines = head.toString("ISO-8859-1").split("\r\n");
             String[] rl = lines.length > 0 ? lines[0].split(" ") : new String[0];
-            if (rl.length < 2) { reply(c, 400, "text/plain", "x".getBytes()); return; }
+            if (rl.length < 2) { reply(c, 400, "text/plain", "x".getBytes()); drain(c); return; }
             int len = 0; String host = null, origin = null, site = null;
             for (int i = 1; i < lines.length; i++) {
                 String l = lines[i], low = l.toLowerCase(java.util.Locale.ROOT);
@@ -130,10 +130,10 @@ final class QuizServer {
                 else if (low.startsWith("sec-fetch-site:")) site = low.substring(15).trim();
             }
             // DNS rebinding: the Host must be the TV's address itself (a number), never a name; CSRF: a page from another origin can write to this address but is refused
-            if (host == null || !HOST.matcher(host).matches()) { reply(c, 403, "text/plain", "x".getBytes()); return; }
-            if (origin != null && !origin.equalsIgnoreCase("http://" + host)) { reply(c, 403, "text/plain", "x".getBytes()); return; }
-            if (site != null && (site.equals("cross-site") || site.equals("same-site"))) { reply(c, 403, "text/plain", "x".getBytes()); return; }
-            if (len < 0 || len > BODY_MAX) { reply(c, 413, "text/plain", "x".getBytes()); return; }
+            if (host == null || !HOST.matcher(host).matches()) { reply(c, 403, "text/plain", "x".getBytes()); drain(c); return; }
+            if (origin != null && !origin.equalsIgnoreCase("http://" + host)) { reply(c, 403, "text/plain", "x".getBytes()); drain(c); return; }
+            if (site != null && (site.equals("cross-site") || site.equals("same-site"))) { reply(c, 403, "text/plain", "x".getBytes()); drain(c); return; }
+            if (len < 0 || len > BODY_MAX) { reply(c, 413, "text/plain", "x".getBytes()); drain(c); return; }
             byte[] body = new byte[len];
             for (int off = 0; off < len; ) {   // the body is read first even for a locked address: answering with a body unread makes the close a connection reset
                 int n = in.read(body, off, len - off);

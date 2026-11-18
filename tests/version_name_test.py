@@ -40,7 +40,7 @@ sh = text("tests/android_compile.sh")
 check("the compile check's BuildConfig has MARKETING for both modules", 'MARKETING="4.0"' in sh)
 
 # nothing takes our own versionName apart
-java = [f for f in (ROOT / "android").rglob("*.java")]
+java = [f for mod in ("app", "launcher") for f in (ROOT / "android" / mod / "src").rglob("*.java")]
 parse = [f.name for f in java if re.search(r"\.versionName|VERSION_NAME", f.read_text(encoding="utf-8"))]
 check("no Java reads our own versionName or BuildConfig.VERSION_NAME (the build is VERSION_CODE, the name MARKETING)", not parse, parse)
 check("the updater compares builds: the screensaver's settings lines, saver.sh show and the update screen all use VERSION_CODE and MARKETING",

@@ -170,12 +170,10 @@ check("the hand file comes first", nm.id("FC Internazionale Milano (ITA)", "4480
 names = json.loads((ROOT / ".github/tools/archive_names.json").read_text())
 check("archive_names.json maps names to TheSportsDB ids", isinstance(names, dict) and all(re.fullmatch(r"\d{1,7}|", str(v)) for v in names.values()))
 
-# 10. the workflow: the archive after the fixtures, the live run alone on its timer, no key, no request in «archive»
-wf = (ROOT / ".github/workflows/league-fixtures.yml").read_text()
-check("the live timer runs every 15 minutes", "*/15 * * * *" in wf)
-check("the fixtures job does not run on the live timer", "github.event.schedule == '23 */6 * * *'" in wf.split("fixtures:")[1].split("steps:")[0])
-check("the archive job follows the fixtures, red or green", "needs: fixtures" in wf and "always() && needs.fixtures.result != 'cancelled'" in wf)
-check("the archive pushes only data-archive", re.findall(r"push -q?f\S* .*?(data-\w+)", wf.split("archive:")[-1]) == ["data-archive"], wf[-400:])
+# 10. The old football archive's scheduled workflow is retired.
+wf = ""
+check("the retired match archive workflow is absent from future releases",
+      not (ROOT / ".github/workflows/league-fixtures.yml").exists())
 src = (ROOT / ".github/tools/match_archive.py").read_text()
 check("build asks no network", "urlopen" not in src.split("def build(")[1].split("\ndef ")[0] and "fetch(" not in src.split("def build(")[1].split("\ndef ")[0])
 check(f"the live run asks at most {ma.LIVE_MAX}, {ma.LIVE_GAP} s apart (the free key's 30 a minute)", ma.LIVE_MAX <= 40 and 60 / ma.LIVE_GAP <= 30)

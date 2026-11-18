@@ -477,6 +477,13 @@ def strip_css_comments(html):
     return re.sub(r"(<style[^>]*>)(.*?)(</style>)", lambda m: m.group(1) + re.sub(r"/\*.*?\*/", "", m.group(2), flags=re.S) + m.group(3), html, flags=re.S)
 
 
+def strip_js_comment_lines(html):
+    """Keep source comments readable while leaving comment-only JS lines out of the TV page."""
+    return re.sub(r"(<script[^>]*>)(.*?)(</script>)",
+                  lambda m: m.group(1) + re.sub(r"^[ \t]*//[^\n]*\n", "", m.group(2), flags=re.M) + m.group(3),
+                  html, flags=re.S)
+
+
 def main():
     template = (ROOT / "src/template.html").read_text(encoding="utf-8").replace("__BUILD__", build_stamp())
     clubs = json.loads((ROOT / "assets/shared/teams.json").read_text(encoding="utf-8"))
@@ -502,7 +509,7 @@ def main():
             page = page.replace("</html>", "<!--\n" + license_file.read_text(encoding="utf-8") + "\n-->\n</html>", 1)
         out = ROOT / "dist" / name
         out.parent.mkdir(exist_ok=True)
-        out.write_text(strip_css_comments(page.replace("__BG_SET__", ",\n".join(entries))), encoding="utf-8")
+        out.write_text(strip_js_comment_lines(strip_css_comments(page.replace("__BG_SET__", ",\n".join(entries)))), encoding="utf-8")
         print(f"wrote {out.relative_to(ROOT)} ({out.stat().st_size / 1e6:.1f} MB)")
 
 if __name__ == "__main__":

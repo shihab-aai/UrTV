@@ -47,8 +47,8 @@ public final class SecondCardRun {
         check("receiver: case matters (Hourly is not a card)", SecondCard.refuse("Hourly", "verse", cards) != null, "");
 
         // the settings' row
-        check("settings row: beside the small clock with a first card", SecondCard.rowShown("small", "verse", cards), "");
-        check("settings row: not beside the medium or the large clock", !SecondCard.rowShown("medium", "verse", cards) && !SecondCard.rowShown("large", "verse", cards), "");
+        check("settings row: beside every clock size with a first card", SecondCard.rowShown("small", "verse", cards)
+            && SecondCard.rowShown("medium", "verse", cards) && SecondCard.rowShown("large", "verse", cards), "");
         check("settings row: not without a first card", !SecondCard.rowShown("small", "none", cards), "");
 
         // the fragment

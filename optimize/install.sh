@@ -712,9 +712,9 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
     case "$SAFE_STAGE" in wizard_off|wifi_check|home_start)
       # the safe order is never picked up half way: the wizard and the stock home go back as they were, and the next run starts it again
       if jrestore; then
-        echo "!! ADB dropped during the safe order of the home switch (at «$SAFE_STAGE», before the stock home was turned off): the setup wizard and the stock home were put back as they were. Check with the person that the TV is still on Wi-Fi, then run the same command again."
+        echo "!! ADB dropped during the safe order of the home switch (at «${SAFE_STAGE}», before the stock home was turned off): the setup wizard and the stock home were put back as they were. Check with the person that the TV is still on Wi-Fi, then run the same command again."
       else
-        echo "!! ADB dropped during the safe order of the home switch (at «$SAFE_STAGE») and the put-back did not go through: run optimize/restore-home.sh when the TV answers."
+        echo "!! ADB dropped during the safe order of the home switch (at «${SAFE_STAGE}») and the put-back did not go through: run optimize/restore-home.sh when the TV answers."
       fi
       exit 1 ;;
     esac

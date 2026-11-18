@@ -1,11 +1,11 @@
 package sa.urtv.screensaver;
 
 /**
- * «بطاقة ثانية»: a second card beside the screensaver's clock, only while the clock is small (there is room for two cards beside it,
- * not beside a larger one). It is any of the screensaver's cards (Prefs.SAVER_PANELS: Prefs.PANELS without the next prayer, which the
+ * «بطاقة ثانية»: a second card below the first beside the screensaver's clock. It is any of the
+ * screensaver's cards (Prefs.SAVER_PANELS: Prefs.PANELS without the next prayer, which the
  * bottom-right panel says already) but the first card again. None by default, and with no first card there is no second one.
  * It goes to the page in the settings fragment as {@code &panel2=}, only while there is one, so without it the fragment is exactly
- * what it was; the page shows it beside the small clock and ignores it otherwise. Plain Java on purpose (the cards are passed in):
+ * what it was; the page shows it below the first card. Plain Java on purpose (the cards are passed in):
  * tests/SecondCardRun.java runs it on a JVM.
  */
 final class SecondCard {
@@ -33,9 +33,9 @@ final class SecondCard {
         return null;
     }
 
-    /** The settings' «بطاقة ثانية» row: only beside the small clock, and only when there is a first card. */
+    /** The settings' «بطاقة ثانية» row: available with every clock size when there is a first card. */
     static boolean rowShown(String clockSize, String first, String[][] cards) {
-        return "small".equals(clockSize) && known(first, cards) && !"none".equals(first);
+        return known(first, cards) && !"none".equals(first);
     }
 
     /** What goes in the settings fragment: nothing without a second card (the page and the URL are then as they were). */

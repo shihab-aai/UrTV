@@ -1053,7 +1053,7 @@ final class Prefs {
      * app) or from the «يُتلى الآن» card instead.
      */
     /** the home's quick buttons the person hid (#52): any of markets, matches, center, phone (the others have their own switch: «زر المهام», «زر تلاوة وأذان»); "" = all shown */
-    static final String[] QUICK_BUTTONS = {"markets", "matches", "center", "phone"};
+    static final String[] QUICK_BUTTONS = {"markets", "center", "phone"};
     String pillsHidden() {
         java.util.List<String> out = new java.util.ArrayList<>();
         for (String k : sp.getString("pillsHidden", "").split(",")) if (java.util.Arrays.asList(QUICK_BUTTONS).contains(k) && !out.contains(k)) out.add(k);

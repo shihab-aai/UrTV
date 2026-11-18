@@ -136,6 +136,7 @@ public class YourTvHubActivity extends Activity {
             View c = cards.get(i);
             int col = i % 2, row = i / 2;
             int other = i - col + (1 - col);
+            if (other >= cards.size()) other = i;   // an odd final row has no neighbour
             c.setNextFocusUpId(cards.get(row == 0 ? i : i - 2).getId());
             c.setNextFocusDownId(cards.get(row == 1 || i + 2 >= cards.size() ? i : i + 2).getId());
             int toEnd = col == 0 ? other : i, toStart = col == 1 ? other : i;

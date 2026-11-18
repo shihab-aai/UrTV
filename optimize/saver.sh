@@ -13,10 +13,10 @@
 #   optimize/saver.sh teams 136013:Al-Hilal 150643:Al-Zulfi    followed teams in order (up to 20; more are left out and listed);
 #                                                  `teams none` (or `teams ""`) follows no team: the defaults (الهلال، المنتخب السعودي) go
 #   optimize/saver.sh card prayers                 beside the clock: shows prayers forecast hourly prayerrow matches verse wisdom adhkar stocks tasks year smart today album hallbookings none
-#   optimize/saver.sh card2 hourly                 a second card beside the clock, shown only while the clock is small (clocksize small):
+#   optimize/saver.sh card2 hourly                 a second card below the first beside the clock, at any clock size:
 #                                                  the same choices but nextprayer and the first card; card2 none = one card (default)
 #   optimize/saver.sh home-card verse,hourly,year  on the home screen (launcher): up to 3 cards, same choices and nextprayer (home only), in this order
-#                                                  (one value works too; none = off). Two sit side by side, a third under them
+#                                                  (one value works too; none = off). Two stack; three keep a pair above the third
 #   optimize/saver.sh greeting off                 home screen: the greeting (by prayer time) and the weather line under it: on (default) or off
 #   optimize/saver.sh listenpill off               home screen: the «تلاوة وأذان» button: on (default) or off. Off removes only the button: the adhan, its alarm and bar, the
 #                                                  any-key stop, the «يُتلى الآن» card and the Quran stay; the screen opens from the app menu (long OK on an app) or the card
@@ -27,7 +27,6 @@
 #   optimize/saver.sh pillshidden markets,matches   home screen: hide quick buttons at the top (markets, matches, center, phone; a comma list), or none (default)
 #   optimize/saver.sh homephotos own               home screen: the wallpaper's photos: same (default, the screensaver's packs) or own (its own set, below)
 #   optimize/saver.sh homepacks nature,sea         home screen, with homephotos own: the photo packs it rotates (their ids, a comma list), or none
-#   optimize/saver.sh matchapp auto               «تطبيق المباريات»: «شاهد المباراة» opens it; auto (UrTV Player when installed, the default), none, or an app's package
 #   optimize/saver.sh accent teal                  all our screens: «لون التمييز», default (the look's own) or amber gold green teal sky violet rose coral
 #   optimize/saver.sh baropacity 70                home: «شفافية الشريط», the tray's and cards' fill, 30 to 100 (100 = as it was, the default)
 #   optimize/saver.sh walldim 30                   «تعتيم الخلفية»: more black over the photo, 0 to 90 (0 = as it was, the default)
@@ -225,7 +224,7 @@ case "${1:-}" in
   card)     [ "${2:-}" = nextprayer ] && { echo "!! nextprayer is a home-screen card only (the screensaver's bottom-right panel already shows the next prayer): optimize/saver.sh home-card nextprayer"; exit 1; }
             set1 panel "${2:?usage: optimize/saver.sh card prayers}" ;;
   card2)    [ "${2:-}" = nextprayer ] && { echo "!! nextprayer is a home-screen card only (the screensaver's bottom-right panel already shows the next prayer): pick another card2, or card2 none"; exit 1; }
-            set1 panel2 "${2:?usage: optimize/saver.sh card2 hourly | none   (shown beside the small clock: optimize/saver.sh clocksize small)}" ;;
+            set1 panel2 "${2:?usage: optimize/saver.sh card2 hourly | none}" ;;
   home-card)set1 home_panel "${2?usage: optimize/saver.sh home-card verse,hourly,year | none}" ;;
   greeting) set1 greeting "${2:?usage: optimize/saver.sh greeting on|off}" ;;
   listenpill) set1 listenpill "${2:?usage: optimize/saver.sh listenpill on|off}" ;;
@@ -234,7 +233,6 @@ case "${1:-}" in
   pillshidden) set1 pillshidden "${2:?usage: optimize/saver.sh pillshidden markets,matches,center,phone | none}" ;;
   homephotos) set1 homephotos "${2:?usage: optimize/saver.sh homephotos same|own}" ;;
   homepacks) set1 homepacks "${2:?usage: optimize/saver.sh homepacks nature,sea | none   (pack ids: docs/PHOTO-PACKS.md; a pack is downloaded on the TV)}" ;;
-  matchapp) set1 matchapp "${2:?usage: optimize/saver.sh matchapp auto|none|<package>}" ;;
   accent) set1 accent "${2:?usage: optimize/saver.sh accent default|amber|gold|green|teal|sky|violet|rose|coral}" ;;
   baropacity) set1 baropacity "${2:?usage: optimize/saver.sh baropacity 30..100}" ;;
   walldim) set1 walldim "${2:?usage: optimize/saver.sh walldim 0..90}" ;;

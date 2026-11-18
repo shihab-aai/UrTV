@@ -33,7 +33,7 @@ with open(fake, "w") as f:
 case "$2" in *photo_prep.py) exec python3 "$@" ;; esac
 [ "$2" = -c ] && exit 1
 if [ "$3" = --push-b64 ]; then
-  echo "PUSH $4 $5" >> "$SENT"; cp "$4" "$KEPT/$(ls "$KEPT" | wc -l).jpg"; echo "pushed $4 -> $5 (1 bytes, md5 ok)"; exit 0
+  echo "PUSH $4 $5" >> "$SENT"; cp "$4" "$KEPT/$(ls "$KEPT" | wc -l | tr -d '[:space:]').jpg"; echo "pushed $4 -> $5 (1 bytes, md5 ok)"; exit 0
 fi
 echo "$3" >> "$SENT"
 case "$3" in *PHOTOS*) [ -n "${FAKE_SILENT:-}" ] && { echo "Broadcast completed: result=0"; exit 0; } ;; esac

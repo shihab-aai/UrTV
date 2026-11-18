@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """«بطاقة ثانية» (#panel2=) on the app's side: the rule itself (SecondCard.java, on a JVM: what the screen gets, what the receiver
 refuses, when the settings' row shows, the fragment), and in the sources that use it: the receiver checks and keeps it and
-saver.sh show prints it, the settings' row sits in «بجانب الساعة» and only beside the small clock, its picker leaves out the first
+saver.sh show prints it, the settings' row sits in «بجانب الساعة» with any clock size, its picker leaves out the first
 card and the next prayer, Prefs sends it in the fragment and keeps it out of the preview, the page keeps it out of the snapshot's
 key, saver.sh card2 sends it (and stops at nextprayer). No TV; the JVM part needs javac (skipped with a note without).
 Run: python3 tests/second_card_test.py"""
@@ -69,7 +69,7 @@ check("receiver: refused before anything is saved, then kept with setPanel2", re
 check("receiver: GET (saver.sh show) has a panel2 line after panel", '+ "\\npanel: " + p.panel() + "\\npanel2: " + p.panel2()' in recv)
 check("receiver: its usage names --es panel2", "[--es panel2 hourly|none]" in recv)
 
-# ---- the settings: the row in «بجانب الساعة», only beside the small clock; the picker
+# ---- the settings: the row in «بجانب الساعة» with any clock size; the picker
 group = re.search(r'header\("بجانب الساعة"\);(.*?)header\(', settings, re.S).group(1)
 row = re.search(r'if \(SecondCard\.rowShown\(prefs\.clockSize\(\), prefs\.panel\(\), Prefs\.SAVER_PANELS\)\)\s*row\("بطاقة ثانية", Prefs\.panelLabel\(prefs\.panel2\(\), "بدون"\)', group)
 check("settings: «بطاقة ثانية» is in the «بجانب الساعة» group, after «المحتوى», shown by SecondCard.rowShown", row and group.index("المحتوى") < row.start(), group[:300])
@@ -78,7 +78,7 @@ pick = re.search(r"private void pickPanel2\(\) \{(.*?)\n    \}", settings, re.S)
 pick = pick.group(1) if pick else ""
 check("settings: the picker offers the screensaver's cards (no next prayer) but the first card", "for (String[] p : Prefs.SAVER_PANELS) if (!p[0].equals(prefs.panel())) rows.add(p);" in pick, pick[:300])
 check("settings: the picker keeps the choice with setPanel2 and draws the card in today's style", "prefs.setPanel2(v)" in pick and "prefs.previewUrl(this, v, prefs.cardStyle())" in pick)
-check("settings: a change of the clock size builds the list again (the row comes and goes)",
+check("settings: a change of the clock size builds the list again",
       re.search(r'prefs\.setClockSize\(Prefs\.CLOCK_SIZES\[i\]\[0\]\); d\.dismiss\(\); render\(\);', settings))
 
 # ---- the page: a look only (out of the snapshot's key); the rule there is the same
@@ -88,8 +88,8 @@ page_home_only = re.search(r"const HOME_ONLY_CARDS = \[(.*?)\]", tpl)
 check("page: #panel2= excludes home-only cards and the first card",
       page_home_only and re.findall(r"'([a-z]+)'", page_home_only.group(1)) == home_only_cards
       and "!HOME_ONLY_CARDS.includes(p) && p !== CONFIG.panel ? p : 'none'" in tpl)
-check("page: the pair only beside the small clock, on the screensaver, with a first card",
-      "const PAIR = !CONFIG.widget && CONFIG.clockSize === 'small' && CONFIG.panel !== 'none' && CONFIG.panel2 !== 'none';" in tpl)
+check("page: two screensaver cards beside every clock size, with a first card",
+      "const PAIR = !CONFIG.widget && CONFIG.panel !== 'none' && CONFIG.panel2 !== 'none';" in tpl)
 
 # ---- saver.sh card2: sent quoted as panel2; nextprayer stops with a !! line and sends nothing
 tmp = tempfile.mkdtemp()

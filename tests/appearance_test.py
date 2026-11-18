@@ -41,8 +41,9 @@ check("step 41: a pack that failed to download says «تعذّر التنزيل�
       "failed.add(p.id)" in packs and '"failed".equals(state)' in packs and "تعذّر التنزيل، حاول مرة ثانية" in text(SAVER / "Words.java"))
 check("4.3 «المظهر»: a main page of six category tiles (look, accent, light, cards, wall, density), each with its picture and value, and one open at a time; Back from a category returns to the page",
       all(w in act for w in ('CATS = {{"look", "الشكل"}', '"accent", "اللون"', "private void renderMain()", "private void renderSub()", "public void onBackPressed()", "if (sub != null)")))
-check("the accent, tray strength, wallpaper dimming and focus style have their controls here (a left-right stepper, tiles with their own picture), the nine looks and the layout too",
-      all(w in act for w in ("prefs.setAccent(", "prefs.setBarPercent(", "prefs.setWallDim(", "prefs.setFocusStyle(", "prefs.setHomeLayout(key)", "private View stepper(", "DOTS = 3, BARS = 4, FOCUS = 5")))
+check("the accent, tray strength, wallpaper dimming and focus style have their controls here; the retired football layout choice is absent",
+      all(w in act for w in ("prefs.setAccent(", "prefs.setBarPercent(", "prefs.setWallDim(", "prefs.setFocusStyle(", "private View stepper(", "DOTS = 3, BARS = 4, FOCUS = 5"))
+      and "prefs.setHomeLayout(key)" not in act)
 HOMEDIR = ROOT / "android/launcher/src/main/java/sa/urtv/home"
 page_src = text(ROOT / "src/template.html")
 pill, bar, mainsrc = text(HOMEDIR / "Pill.java"), text(HOMEDIR / "PillBar.java"), text(HOMEDIR / "MainActivity.java")

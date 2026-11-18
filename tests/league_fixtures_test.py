@@ -164,16 +164,9 @@ else:
 cache = json.loads((ROOT / ".github/tools/teams-cache.json").read_text(encoding="utf-8"))["leagues"]
 check("every league of the app has its id in teams-cache.json (no search needed in CI)", all(n in cache for n in leagues), [n for n in leagues if n not in cache])
 
-# ---- the workflow runs on a timer, by hand, or on a push to master/next that changes its own files (never a work branch)
-wf = (ROOT / ".github/workflows/league-fixtures.yml").read_text(encoding="utf-8")
-on = wf.split("\non:", 1)[1].split("\npermissions:", 1)[0]
-push = on.split("push:", 1)[1] if "push:" in on else ""
-check("workflow: a timer, by hand, or a push to master/next touching only its own files",
-      "schedule:" in on and "workflow_dispatch:" in on and "pull_request" not in on
-      and (not push or ("branches: [master, next]" in push
-                        and set(re.findall(r"- '([^']+)'", push)) == {".github/tools/league_fixtures.py", ".github/tools/tournaments_fixtures.py", "assets/shared/tournaments.json", ".github/workflows/league-fixtures.yml"})),
-      on[-400:])
-check("workflow: pushes only to data-leagues", "git push -f origin data-leagues" in wf and "origin work" not in wf)
+# ---- the collector's old workflow is retired with the football surface.
+check("the retired league fixtures workflow is absent from future releases",
+      not (ROOT / ".github/workflows/league-fixtures.yml").exists())
 check("page reads the branch the workflow writes", "tshi-dev/UrTV/data-leagues/leagues/" in (ROOT / "src/template.html").read_text(encoding="utf-8"))
 
 # ---- Prefs.leagueByName, the Java the settings screen and saver.sh share: English, Arabic and slug spellings

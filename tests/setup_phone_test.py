@@ -32,7 +32,8 @@ def run(**env):
     for tool in ("bash", "env", "dirname", "cat", "tr", "grep", "sed", "mktemp", "mkdir", "cp", "rm", "uname", "head", "mv", "chmod", "ls", "printf", "sort"):
         p = shutil.which(tool)
         if p: (d / "bin" / tool).symlink_to(p)    # only these: no other Python (and no uv) on the PATH, so the stand-in is the one picked
-    e = dict(os.environ, T=str(d), PATH=str(d / "bin"), HAS_PIL="", PIL_BUILD="", PIP_FAILS="", URTV_SYSTEM_SITE="", PREFIX="")
+    e = dict(os.environ, T=str(d), PATH=str(d / "bin"), HOME=str(d), XDG_DATA_HOME=str(d / "data"),
+             HAS_PIL="", PIL_BUILD="", PIP_FAILS="", URTV_SYSTEM_SITE="", PREFIX="")
     e.update(env)
     r = subprocess.run(["bash", str(tr / "optimize/setup.sh")], env=e, capture_output=True, text=True, cwd=tr)
     return r, (d / "log").read_text() if (d / "log").exists() else ""

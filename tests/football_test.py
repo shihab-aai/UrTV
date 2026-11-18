@@ -16,8 +16,8 @@ def check(name, ok, detail=""):
 read = lambda p: p.read_text(encoding="utf-8")
 
 prefs, recv, prov, st = read(APP / "Prefs.java"), read(APP / "SaverReceiver.java"), read(APP / "ConfigProvider.java"), read(APP / "SettingsActivity.java")
-check("the setting: classic (the default, the home as it always was) or football, nothing else kept",
-      'static final String[] HOME_LAYOUTS = {"classic", "football"};' in prefs and 'sp.getString("homeLayout", HOME_LAYOUTS[0])' in prefs
+check("the home layout offers only classic after football was removed",
+      'static final String[] HOME_LAYOUTS = {"classic"};' in prefs and 'sp.getString("homeLayout", HOME_LAYOUTS[0])' in prefs
       and "if (java.util.Arrays.asList(HOME_LAYOUTS).contains(v)) sp.edit().putString(\"homeLayout\", v).apply();" in prefs)
 check("saver.sh homelayout: refused unless classic or football, saved, and said by show",
       'return "error: homelayout is one of "' in recv and "if (homeLayout != null) p.setHomeLayout(homeLayout);" in recv
@@ -26,9 +26,9 @@ check("the home reads it as a column of its own after the others (an older scree
       '"watch_next", "look", "home_layout", "fav_bar", "pages_dark", "pills_hidden", "look_tweaks", "match_app", "page_zone", "city_chosen"});' in prov and "p.look(), p.homeLayout()," in prov and "p.favBar(), p.pagesDark()" in prov
       and 'layout = l >= 0 && c.getString(l) != null ? c.getString(l) : "classic";' in read(HOME / "HomeCard.java"))
 appr = read(ROOT / "android/app/src/main/java/sa/urtv/screensaver/AppearanceActivity.java")
-check("on the TV: «المظهر» (its one page, since design/43) has the «الواجهة» choice, and «المباريات والأسواق» a row that opens the page of the games",
-      'w("الواجهة")' in appr and "prefs.setHomeLayout(key)" in appr
-      and 'row("مباريات اليوم", "الأيام والدوريات، وفرقك أولاً"' in st and 'setClassName("sa.urtv.home", "sa.urtv.home.MatchesActivity")' in st)
+check("the TV settings no longer offer a football layout or match page",
+      'w("الواجهة")' not in appr and 'row("مباريات اليوم", "الأيام والدوريات، وفرقك أولاً"' not in st
+      and 'setClassName("sa.urtv.home", "sa.urtv.home.MatchesActivity")' not in st)
 check("SETTINGS.md names the command", "`optimize/saver.sh homelayout football`" in read(ROOT / "docs/SETTINGS.md"))
 check("«تابع» goes through the screensaver's provider, the launcher's own permission, the same list as «الفرق المتابعة»",
       'case "phone_follow": {' in prov and "ok = p.addTeam(kv[0], name);" in prov
@@ -54,9 +54,8 @@ check("the football home hides the greeting (the weather has its card) and its g
       and "greeting.setVisibility(football ? View.GONE : View.VISIBLE);" in main and "homeCard.light(light);" in main)
 check("OK on the games opens «المباريات» on the chosen game", "guarded(ParentalPolicy.WIDGET_MATCHES, null, S.t(\"المباريات\"), () -> launch(games));" in main
       and 'js("typeof fbPick===\'function\'?fbPick():\'\'", id -> host.open(MT, unquote(id)));' in ff)
-check("«المباريات»: the page's own mode, Back closes a game's card first, its WebView pauses and resumes like HomeCard's",
-      "HomeCardChoice.matchesUrl(cfg.fragment, event)" in ma and "mpBack()" in ma and 'if (!"closed".equals(FootballFocus.unquote(v))) finish();' in ma
-      and 'android:name=".MatchesActivity"' in read(ROOT / "android/launcher/src/main/AndroidManifest.xml"))
+check("the match page is no longer registered as an activity",
+      'android:name=".MatchesActivity"' not in read(ROOT / "android/launcher/src/main/AndroidManifest.xml"))
 check("what the page may ask: a task (the reminder's hook, MatchReminder), a followed club added or removed, the broadcaster's app (installed? open), and 4.3 «شاهد المباراة» (is a match app there? the game's checked facts to it), nothing else",
       ma.count("@JavascriptInterface") == 10 and "public boolean openTeams()" in ma and "public boolean matchApp()" in ma and "public boolean findMatch(String json)" in ma and "public boolean remind(String text, double at)" in ma and "public boolean follow(String id, String name)" in ma and "public boolean unfollow(String id)" in ma
       and "public String appOf(String csv)" in ma and "public boolean open(String csv)" in ma

@@ -7,7 +7,7 @@
 py_ok() { "$@" -c "import sys; sys.exit(not ((3, 10) <= sys.version_info[:2] < (3, 14)))" >/dev/null 2>&1; }
 pick_python() {
   local c la v bad=
-  local -a cands=(python3.13 python3.12 /opt/homebrew/bin/python3 /usr/local/bin/python3)
+  local -a cands=(python3.13 python3.12 python3 /opt/homebrew/bin/python3 /usr/local/bin/python3)
   # `uv python install 3.12` needs no admin password: its Pythons are not on PATH, so ask uv, then look in its folder
   for v in 3.13 3.12 3.11 3.10; do
     c=$(uv python find "$v" 2>/dev/null || true)
@@ -16,7 +16,7 @@ pick_python() {
   for c in "${XDG_DATA_HOME:-$HOME/.local/share}"/uv/python/cpython-3.1[0-3]*/bin/python3; do
     [ -x "$c" ] && cands+=("$c")
   done
-  cands+=(python3 python)
+  cands+=(python)
   if command -v cygpath >/dev/null 2>&1; then   # Git Bash on Windows
     la=$(cygpath -u "${LOCALAPPDATA:-}" 2>/dev/null || true)
     for c in "$la"/Programs/Python/Python3*/python.exe "/c/Program Files/Python3"*/python.exe; do
