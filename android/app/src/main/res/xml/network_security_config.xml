@@ -2,7 +2,7 @@
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
     <domain-config>
-        <domain>hallsbooking.mtc.edu.om</domain>
+        <domain includeSubdomains="false">hallsbooking.mtc.edu.om</domain>
         <trust-anchors>
             <certificates src="system" />
             <certificates src="@raw/harica_tls_rsa_root_ca_2021" />
